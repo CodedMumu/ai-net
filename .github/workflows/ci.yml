@@ -108,6 +108,46 @@ jobs:
       - name: Unit tests & coverage (vitest)
         run: npm run test:coverage
 
+  frontend-accessibility:
+    name: frontend-accessibility (axe-core WCAG AA)
+    needs: [frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.0-jammy
+    env:
+      TZ: UTC
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run accessibility tests (axe WCAG AA)
+        run: npx playwright test tests/e2e/accessibility.spec.ts --reporter=html
+        env:
+          CI: "true"
+
+      - name: Upload accessibility HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-accessibility-report
+          path: frontend/playwright-report/
+          retention-days: 30
+
+      - name: Summarise violations in job summary
+        if: failure()
+        run: |
+          {
+            echo "### ♿ Accessibility violations detected";
+            echo "WCAG AA violations were found. Open the **playwright-accessibility-report** artifact and load \`index.html\` to review failing tests.";
+          } >> "$GITHUB_STEP_SUMMARY"
+
   frontend-visual:
     name: frontend-visual-regression
     # Deliberately does NOT `needs: [frontend]`. This suite renders four
@@ -222,12 +262,12 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Cargo clippy
-        run: cargo clippy --locked -p error-resolver -p error-registry -p agent-registry -p agent-bidding --all-targets -- -D warnings
+        run: cargo clippy --locked -p error-resolver -p error-registry -p agent-registry -p agent-bidding -p payment_escrow --all-targets -- -D warnings
 
       # `--locked` keeps CI on the workspace lockfile resolution, which pins
       # ed25519-dalek to a version compatible with current stable Rust.
       - name: Cargo tests
-        run: cargo test --locked -p error-resolver -p error-registry -p agent-registry -p agent-bidding
+        run: cargo test --locked -p error-resolver -p error-registry -p agent-registry -p agent-bidding -p payment_escrow
 
       # Optimized Wasm builds for the deployable contracts.
       # (error-resolver is exercised natively above; its Wasm target is

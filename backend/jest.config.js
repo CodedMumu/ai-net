@@ -20,7 +20,6 @@ module.exports = {
   },
   moduleNameMapper: {
     '^@stellar/stellar-sdk$': '<rootDir>/__mocks__/@stellar/stellar-sdk.js',
-    '^better-sqlite3$': '<rootDir>/__mocks__/better-sqlite3.js',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   collectCoverageFrom: [

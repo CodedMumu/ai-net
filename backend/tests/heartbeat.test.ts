@@ -130,6 +130,9 @@ describe("Heartbeat Monitoring and Dead-Agent Cleanup", () => {
   });
 
   describe("Heartbeat Cleanup Background Service", () => {
+    // FLAKY: timing-sensitive — intervalMs=100 relies on real clock ticks which
+    // can be missed under heavy CI load. The test compensates by calling
+    // markStaleAgents manually, but service.start() itself races the interval.
     it("runs cleanup on interval and logs stats", () => {
       const { db, rawDb } = createTestApp([testAgent]);
 

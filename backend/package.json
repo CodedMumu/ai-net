@@ -10,6 +10,8 @@
     "test": "jest --runInBand --forceExit",
     "test:coverage": "jest --coverage --runInBand --forceExit",
     "test:e2e": "jest --config ../tests/e2e/jest.config.js --runInBand --forceExit",
+    "test:flaky": "node ../scripts/detect-flaky-tests.js --suite backend --runs 5",
+    "test:performance": "ts-node tests/performance/run.ts",
     "db:migrate": "ts-node src/db/cli.ts migrate",
     "db:rollback": "ts-node src/db/cli.ts rollback",
     "db:seed": "ts-node src/db/cli.ts seed"

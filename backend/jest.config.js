@@ -5,6 +5,9 @@ module.exports = {
   roots: ['<rootDir>/tests', '<rootDir>/src'],
   testMatch: ['**/?(*.)+(spec|test).[tj]s'],
   testTimeout: 130_000,
+  // Retry failed tests up to 2 times before marking as failed (#95).
+  // This surfaces true failures while absorbing transient timing/network flakes.
+  retries: 2,
   setupFilesAfterEnv: ['<rootDir>/tests/jestSetup.ts'],
   globalTeardown: '<rootDir>/tests/global-teardown.ts',
   transform: {

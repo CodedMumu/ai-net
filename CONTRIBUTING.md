@@ -182,3 +182,67 @@ Before marking a PR as ready for review:
 ## 7. Agent & Contributor Guidelines
 
 For AI coding agents and automated contributors, refer to [AGENTS.md](AGENTS.md) for strict architectural rules, toolchain conventions, and repository standards.
+
+---
+
+## 8. Branch Protection Rules & Required Status Checks
+
+The `main` branch is protected with the following rules enforced via GitHub repository settings. **No contributor (including maintainers) may bypass these rules except in a documented emergency.**
+
+### 8.1 Pull Request Requirements
+
+| Rule | Setting |
+|---|---|
+| **Require pull request before merging** | ✅ Enabled — direct push to `main` is blocked for all contributors |
+| **Required approving reviews** | **2** reviews from code owners or maintainers |
+| **Dismiss stale reviews** | ✅ Enabled — approvals are dismissed when new commits are pushed |
+| **Require review from Code Owners** | ✅ Enabled (see `CODEOWNERS` when configured) |
+
+### 8.2 Required Status Checks
+
+All of the following CI jobs must pass green before a PR can be merged:
+
+| Status Check | Workflow | Description |
+|---|---|---|
+| `backend-lint-typecheck` | `ci.yml` | ESLint + TypeScript typecheck on backend |
+| `backend-test` | `ci.yml` | Jest unit test suite with ≥75% coverage threshold |
+| `frontend-lint-typecheck` | `ci.yml` | ESLint + TypeScript typecheck on frontend |
+| `frontend-test` | `ci.yml` | Vitest unit test suite with ≥70% coverage threshold |
+| `smart-contracts` | `smart-contracts.yml` | Cargo fmt, Clippy, and Rust unit tests |
+| `docker-build` | `ci.yml` | Docker Compose build to verify container health |
+
+> ⚠️ **Branches must be up to date before merging.** GitHub will prevent merge if the branch is behind `main`. Rebase or merge `main` into your branch first.
+
+### 8.3 Force Push & History Rewriting
+
+| Rule | Setting |
+|---|---|
+| **Allow force pushes** | ❌ Disabled for all contributors |
+| **Admin emergency override** | Admins may temporarily enable force push for a specific SHA in a documented incident. Must be reverted within 24 hours. |
+| **Allow deletions** | ❌ Disabled — `main` cannot be deleted |
+
+### 8.4 Configuring Branch Protection via GitHub CLI
+
+Repository admins can apply these rules programmatically:
+
+```bash
+# Apply branch protection to main
+gh api repos/{owner}/{repo}/branches/main/protection \
+  --method PUT \
+  --field required_status_checks='{"strict":true,"contexts":["backend-lint-typecheck","backend-test","frontend-lint-typecheck","frontend-test","smart-contracts","docker-build"]}' \
+  --field enforce_admins=false \
+  --field required_pull_request_reviews='{"required_approving_review_count":2,"dismiss_stale_reviews":true}' \
+  --field restrictions=null \
+  --field allow_force_pushes=false \
+  --field allow_deletions=false
+```
+
+### 8.5 Emergency Bypass Procedure
+
+In a genuine production incident where a hotfix must land directly:
+
+1. Document the incident in the `#incidents` Slack channel with reason and SHA.
+2. A second maintainer must acknowledge the bypass in writing (Slack thread or GitHub comment).
+3. Admin temporarily grants force-push to the specific contributor for max 1 hour.
+4. After the fix lands, re-enable protection and create a follow-up PR to add tests.
+5. Post a retrospective note in the PR description linking back to the incident.

@@ -58,6 +58,70 @@ services:
       backend:
         condition: service_healthy
 
+  # ── Monitoring profile ────────────────────────────────────────────────────
+  # Start with: docker compose --profile monitoring up
+  #
+  # Services:
+  #   prometheus  — scrapes /metrics from the backend every 15s
+  #   grafana     — pre-provisioned with Prometheus datasource and ai-net dashboard
+  #
+  # Endpoints (when monitoring profile is active):
+  #   Prometheus: http://localhost:9090
+  #   Grafana:    http://localhost:3001  (admin / admin)
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: ai-net-prometheus
+    profiles: [monitoring]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: ai-net-grafana
+    profiles: [monitoring]
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana-dashboard.json:/etc/grafana/dashboards/ai-net-observability.json:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   sqlite_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
     driver: local

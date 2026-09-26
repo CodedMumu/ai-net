@@ -1,6 +1,7 @@
 import { eventBus } from '../coordinator/eventBus';
 import type { AgentRegistration, AgentRegistry } from '../types/agent';
 import { createLogger } from '../utils/logger';
+import { metricsService } from './metrics';
 import type pino from 'pino';
 
 export interface AgentMonitorOptions {
@@ -73,6 +74,8 @@ export class AgentMonitorService {
 
     if (isHealthy) {
       this.failureCounts.set(agentId, 0);
+      // Update agent_health_status Prometheus gauge
+      metricsService.setAgentHealthStatus(agentId, true);
       if (agent.status === 'offline') {
         agent.status = 'online';
         if (typeof this.registry.markOnline === 'function') {
@@ -98,6 +101,8 @@ export class AgentMonitorService {
 
       if (newFailures >= this.failureThreshold && agent.status !== 'offline') {
         agent.status = 'offline';
+        // Update agent_health_status Prometheus gauge
+        metricsService.setAgentHealthStatus(agentId, false);
         if (typeof this.registry.markOffline === 'function') {
           await this.registry.markOffline(agentId);
         } else if (typeof this.registry.registerAgent === 'function') {

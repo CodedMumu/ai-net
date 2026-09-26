@@ -22,6 +22,7 @@ import {
   runWithTraceContext,
   childSpanContext,
 } from '../services/traceContext';
+import { metricsService } from '../services/metrics';
 
 const DEFAULT_CONCURRENCY = 3;
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -221,6 +222,13 @@ export class Coordinator {
           taskId,
           timestamp: now(),
         });
+
+        // Record task failure metric with reason
+        if (status === 'failed') {
+          const firstFailedNode = dag.find(n => n.status === 'failed');
+          const reason = firstFailedNode?.error ?? 'execution_failed';
+          metricsService.recordTaskFailed(reason);
+        }
 
         this.log.info(
           { taskId, status, completedCount: completed.size, failedCount: failed.size },
@@ -432,6 +440,11 @@ export class Coordinator {
         timestamp: now(),
         payload: { txHash },
       });
+
+      // Record Stellar payment transaction metric
+      metricsService.recordStellarTransaction('payment');
+      // Record Venice AI call by agent type
+      metricsService.recordVeniceCallByAgentType(node.type, 'success', 0);
 
       this.log.info(
         { taskId, nodeId: node.nodeId, txHash },

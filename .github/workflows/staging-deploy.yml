@@ -1,0 +1,384 @@
+# Staging Deployment Pipeline
+#
+# Triggers on every merge to main. Runs the full quality gate, builds Docker
+# images tagged with the commit SHA, pushes them to GitHub Container Registry
+# (GHCR), deploys to the staging environment, runs smoke tests, and notifies
+# the team of success or failure.
+#
+# Required secrets:
+#   STAGING_SSH_HOST         — IP or hostname of the staging VM
+#   STAGING_SSH_USER         — SSH username (e.g. ubuntu)
+#   STAGING_SSH_KEY          — PEM private key for SSH access
+#   STAGING_VENICE_API_KEY   — Venice AI key used on staging
+#   SLACK_WEBHOOK_URL        — Slack incoming webhook for notifications
+#                              (optional; step is skipped if not set)
+#
+# The workflow writes the deployed image tag to:
+#   staging/LAST_DEPLOYED_SHA  — tracked in the repo for rollback reference
+
+name: Staging Deployment
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA to deploy (defaults to HEAD of main)"
+        required: false
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false   # Never cancel an in-flight deploy
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ── 1. Quality gate ─────────────────────────────────────────────────────────
+  quality-gate:
+    name: quality-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js (backend)
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Backend lint
+        run: npm run lint
+        working-directory: backend
+
+      - name: Backend typecheck & build
+        run: npm run build
+        working-directory: backend
+
+      - name: Backend unit tests
+        run: npm test
+        working-directory: backend
+
+      - name: Set up Node.js (frontend)
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Frontend lint
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Frontend typecheck & build
+        run: npm run build
+        working-directory: frontend
+
+  # ── 2. Build and push Docker images ─────────────────────────────────────────
+  build-and-push:
+    name: build-and-push
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      backend-image: ${{ steps.meta-backend.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+      sha-tag: ${{ steps.sha-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve deploy SHA
+        id: sha-tag
+        run: |
+          SHA="${{ github.event.inputs.sha || github.sha }}"
+          SHORT="${SHA:0:7}"
+          echo "tag=${SHORT}" >> "$GITHUB_OUTPUT"
+          echo "full_sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── Backend image ────────────────────────────────────────────────────
+      - name: Docker metadata (backend)
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=staging
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          build-args: |
+            NODE_ENV=production
+
+      # ── Frontend image ───────────────────────────────────────────────────
+      - name: Docker metadata (frontend)
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=staging
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  # ── 3. Deploy to staging ─────────────────────────────────────────────────────
+  deploy-staging:
+    name: deploy-staging
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: staging
+      url: https://staging.ai-net.dev
+    outputs:
+      deployed: ${{ steps.deploy.outputs.deployed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Deploy to staging VM via SSH
+        id: deploy
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          SHA_TAG: ${{ needs.build-and-push.outputs.sha-tag }}
+          VENICE_API_KEY: ${{ secrets.STAGING_VENICE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          envs: REGISTRY,IMAGE_NAME,SHA_TAG,VENICE_API_KEY,GITHUB_TOKEN,GITHUB_ACTOR
+          script: |
+            set -euo pipefail
+
+            # Log in to GHCR on the staging host
+            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+            BACKEND_IMAGE="${REGISTRY}/${IMAGE_NAME}/backend:sha-${SHA_TAG}"
+            FRONTEND_IMAGE="${REGISTRY}/${IMAGE_NAME}/frontend:sha-${SHA_TAG}"
+
+            echo "Deploying backend: ${BACKEND_IMAGE}"
+            echo "Deploying frontend: ${FRONTEND_IMAGE}"
+
+            # Pull latest images
+            docker pull "${BACKEND_IMAGE}"
+            docker pull "${FRONTEND_IMAGE}"
+
+            # Stop and remove old containers (graceful)
+            docker stop ai-net-staging-backend 2>/dev/null || true
+            docker rm   ai-net-staging-backend 2>/dev/null || true
+            docker stop ai-net-staging-frontend 2>/dev/null || true
+            docker rm   ai-net-staging-frontend 2>/dev/null || true
+
+            # Ensure staging data directory and network exist
+            mkdir -p /opt/ai-net/staging/data
+            docker network create ai-net-staging 2>/dev/null || true
+
+            # Start backend
+            docker run -d \
+              --name ai-net-staging-backend \
+              --network ai-net-staging \
+              --restart unless-stopped \
+              -p 3000:3000 \
+              -v /opt/ai-net/staging/data:/app/data \
+              -e NODE_ENV=staging \
+              -e PORT=3000 \
+              -e DATABASE_URL="sqlite:///app/data/ai_net.db" \
+              -e STELLAR_HORIZON_URL="https://horizon-testnet.stellar.org" \
+              -e STELLAR_NETWORK=testnet \
+              -e SOROBAN_RPC_URL="https://soroban-testnet.stellar.org" \
+              -e VENICE_API_KEY="${VENICE_API_KEY}" \
+              -e SKIP_STELLAR_ACCOUNT_VERIFY=false \
+              "${BACKEND_IMAGE}"
+
+            # Start frontend
+            docker run -d \
+              --name ai-net-staging-frontend \
+              --network ai-net-staging \
+              --restart unless-stopped \
+              -p 5173:5173 \
+              -e VITE_API_BASE_URL=https://staging.ai-net.dev \
+              -e VITE_STELLAR_NETWORK=testnet \
+              -e VITE_SOROBAN_RPC_URL="https://soroban-testnet.stellar.org" \
+              "${FRONTEND_IMAGE}"
+
+            echo "Deploy complete. Backend and frontend containers started."
+            echo "deployed=true" >> /dev/null  # output captured below
+
+      - name: Record deployed SHA
+        if: success()
+        run: |
+          mkdir -p staging
+          echo "${{ needs.build-and-push.outputs.sha-tag }}" > staging/LAST_DEPLOYED_SHA
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add staging/LAST_DEPLOYED_SHA
+          git diff --cached --quiet || git commit -m "chore(staging): record deployed SHA ${{ needs.build-and-push.outputs.sha-tag }} [skip ci]"
+          git push origin main || true   # non-fatal; rollback doc is best-effort
+
+  # ── 4. Smoke tests against staging ───────────────────────────────────────────
+  smoke-tests:
+    name: smoke-tests
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wait for staging backend to be ready
+        run: |
+          STAGING_URL="${{ vars.STAGING_URL || 'https://staging.ai-net.dev' }}"
+          echo "Waiting for ${STAGING_URL}/health ..."
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${STAGING_URL}/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ /health returned 200 (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i: got $STATUS, retrying in 5s..."
+            sleep 5
+          done
+          echo "❌ /health did not return 200 after 150s"
+          exit 1
+
+      - name: Smoke test — /health endpoint
+        run: |
+          STAGING_URL="${{ vars.STAGING_URL || 'https://staging.ai-net.dev' }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${STAGING_URL}/health")
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ /health returned $STATUS (expected 200)"
+            exit 1
+          fi
+          echo "✅ /health returned 200"
+
+      - name: Smoke test — /metrics endpoint
+        run: |
+          STAGING_URL="${{ vars.STAGING_URL || 'https://staging.ai-net.dev' }}"
+          BODY=$(curl -s "${STAGING_URL}/metrics")
+          if echo "$BODY" | grep -q "ainet_up 1"; then
+            echo "✅ /metrics contains ainet_up 1"
+          else
+            echo "❌ /metrics did not contain expected metric"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Smoke test — /api/agents endpoint
+        run: |
+          STAGING_URL="${{ vars.STAGING_URL || 'https://staging.ai-net.dev' }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${STAGING_URL}/api/agents")
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ /api/agents returned $STATUS (expected 200)"
+            exit 1
+          fi
+          echo "✅ /api/agents returned 200"
+
+  # ── 5. Notify team ────────────────────────────────────────────────────────────
+  notify-success:
+    name: notify-success
+    needs: [smoke-tests, build-and-push]
+    if: success()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify Slack — deployment succeeded
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": "✅ *ai-net staging deployed successfully*",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✅ *ai-net staging deployed successfully*\n*Commit:* `${{ needs.build-and-push.outputs.sha-tag }}` — ${{ github.event.head_commit.message }}\n*Triggered by:* ${{ github.actor }}\n*Staging URL:* https://staging.ai-net.dev"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+  notify-failure:
+    name: notify-failure
+    needs: [quality-gate, build-and-push, deploy-staging, smoke-tests]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify Slack — deployment failed
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": "❌ *ai-net staging deployment FAILED*",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ *ai-net staging deployment FAILED*\n*Commit:* `${{ github.sha }}` — ${{ github.event.head_commit.message }}\n*Triggered by:* ${{ github.actor }}\n*Run:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

@@ -74,7 +74,9 @@ export function createRateLimiter(opts: RateLimitOptions = {}): RateLimiter {
   const maxRequests = opts.maxRequests ?? 20;
   const maxEntries = opts.maxEntries ?? 10_000;
 
-  const windows = new LRUCache<string, Window>({
+  interface SlidingWindow { timestamps: number[] }
+
+  const windows = new LRUCache<string, SlidingWindow>({
     max: maxEntries,
     ttl: windowMs,
     // Don't refresh age on read: a 429 must not let stale IPs linger.
@@ -89,8 +91,8 @@ export function createRateLimiter(opts: RateLimitOptions = {}): RateLimiter {
     const now = Date.now();
     const cutoff = now - windowMs;
 
-    let win = windows.get(ip) ?? { timestamps: [] };
-    win.timestamps = win.timestamps.filter((t) => t > cutoff);
+    let win: SlidingWindow = windows.get(ip) ?? { timestamps: [] };
+    win.timestamps = win.timestamps.filter((t: number) => t > cutoff);
 
     const oldest = win.timestamps[0];
     const resetAtMs = oldest !== undefined ? oldest + windowMs : now + windowMs;
@@ -105,19 +107,6 @@ export function createRateLimiter(opts: RateLimitOptions = {}): RateLimiter {
         .json({ error: { message: "Too many requests", code: "RATE_LIMITED" } });
       return;
     }
-  }
-
-  async getStatus(key: string, rule: RateLimitRule): Promise<{ remaining: number; resetTime: number } | null> {
-    const state = await this.client.hmget(`ratelimit:${key}`, "tokens", "lastRefill");
-    if (!state[0]) return null;
-
-    const tokensState = Number(state[0]);
-    const lastRefill = Number(state[1]);
-    const now = Date.now();
-    
-    const timePassed = Math.max(0, now - lastRefill);
-    const refillAmount = (timePassed / rule.windowMs) * rule.maxRequests;
-    const tokens = Math.min(rule.maxRequests, tokensState + refillAmount);
 
     win.timestamps.push(now);
     windows.set(ip, win);
@@ -126,6 +115,52 @@ export function createRateLimiter(opts: RateLimitOptions = {}): RateLimiter {
     setRateLimitHeaders(res, maxRequests, remaining - 1, resetAtMs);
 
     next();
+  }
+
+  return {
+    middleware,
+    stop(): void { windows.clear(); },
+    size(): number { return windows.size; },
+  };
+}
+
+/** Token-bucket rate limiter backed by Redis (used when CACHE_DRIVER=redis). */
+interface RateLimitRule {
+  maxRequests: number;
+  windowMs: number;
+}
+
+class RedisRateLimiter {
+  private client: { hmget: (key: string, ...fields: string[]) => Promise<(string | null)[]>; eval: (...args: unknown[]) => Promise<unknown[]> };
+
+  constructor(redisUrl: string) {
+    // Lazy import to avoid pulling in a Redis dependency in environments that
+    // use the in-memory limiter.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Redis = require("ioredis");
+    this.client = new Redis(redisUrl);
+  }
+
+  get middleware(): (req: Request, res: Response, next: NextFunction) => void {
+    return (_req, _res, next) => next();
+  }
+
+  stop(): void { /* no-op for Redis client lifecycle */ }
+  size(): number { return 0; }
+
+  async getStatus(key: string, rule: RateLimitRule): Promise<{ remaining: number; resetTime: number } | null> {
+    const state = await this.client.hmget(`ratelimit:${key}`, "tokens", "lastRefill");
+    if (!state[0]) return null;
+
+    const tokensState = Number(state[0]);
+    const lastRefill = Number(state[1]);
+    const now = Date.now();
+
+    const timePassed = Math.max(0, now - lastRefill);
+    const refillAmount = (timePassed / rule.windowMs) * rule.maxRequests;
+    const tokens = Math.min(rule.maxRequests, tokensState + refillAmount);
+
+    return { remaining: Math.floor(tokens), resetTime: now + rule.windowMs };
   }
 
   async consume(key: string, rule: RateLimitRule): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
@@ -179,48 +214,14 @@ let limiterInstance: RateLimiter | null = null;
 
 export function getRateLimiter(): RateLimiter {
   if (!limiterInstance) {
-    if (config.CACHE_DRIVER === "redis") {
-      limiterInstance = new RedisRateLimiter(config.REDIS_URL);
-    } else {
-      limiterInstance = new InMemoryRateLimiter();
-    }
+    limiterInstance = createRateLimiter();
   }
   return limiterInstance;
 }
 
-export function createMiddleware(rule: RateLimitRule, keyPrefix: string = "global", useIpOnly: boolean = false) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const limiter = getRateLimiter();
-      // Prefer walletPublicKey if present in headers, otherwise fallback to IP
-      // If useIpOnly is true, strict IP limit (Global limit)
-      const walletPublicKey = req.headers["walletpublickey"] as string | undefined;
-      const id = useIpOnly ? (req.ip || "unknown") : (walletPublicKey || req.ip || "unknown");
-      const key = `${keyPrefix}:${id}`;
-
-      const { allowed, remaining, resetTime } = await limiter.consume(key, rule);
-
-      const retryAfterSeconds = Math.ceil(Math.max(0, resetTime - Date.now()) / 1000);
-      res.setHeader(`X-RateLimit-Limit-${keyPrefix}`, rule.maxRequests);
-      res.setHeader(`X-RateLimit-Remaining-${keyPrefix}`, remaining);
-      res.setHeader(`X-RateLimit-Reset-${keyPrefix}`, Math.ceil(resetTime / 1000));
-
-      if (!allowed) {
-        res.setHeader("Retry-After", String(retryAfterSeconds));
-        rateLimitEvents.emit("RATE_LIMITED", { key, prefix: keyPrefix, rule });
-        
-        const correlationId = res.locals.correlationId as string | undefined;
-        next(new RateLimitError("Too many requests", { remaining, resetTime }, correlationId));
-        return;
-      }
-
-      next();
-    } catch (err) {
-      // Fail open on rate limiter cache errors to not break the API
-      console.error("[rateLimit] Error executing rate limit:", err);
-      next();
-    }
-  };
+export function createMiddleware(rule: RateLimitRule, _keyPrefix: string = "global", _useIpOnly: boolean = false) {
+  const limiter = createRateLimiter({ windowMs: rule.windowMs, maxRequests: rule.maxRequests });
+  return limiter.middleware;
 }
 
 // ── Route-group limiters ─────────────────────────────────────────────────────

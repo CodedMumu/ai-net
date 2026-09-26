@@ -19,7 +19,6 @@ import {
 import { httpDispatch } from "../coordinator/dispatch";
 import { eventBus } from "../coordinator/eventBus";
 import { getTask } from "../coordinator/taskStore";
-import { getTaskDb } from "../db/tasks";
 import { createPaymentReleaseFn, type StellarReleasePaymentFn } from "../payment";
 import { getGlobalJobQueue, JobWorker, type JobQueue } from "../queue";
 import { createHeartbeatService, type HeartbeatServiceOptions } from "../services/heartbeat";
@@ -30,35 +29,24 @@ import {
   getStreamConnectionCount,
   type TaskStreamOptions,
 } from "./routes/stream";
-import { metricsMiddleware, metricsService } from "../services/metrics";
 import type { DAGNode } from "../types/task";
-import {
-  createPaymentReleaseFn,
-  type StellarReleasePaymentFn,
-} from "../payment";
 import { agentsRouter } from "./routes/agents";
 import { healthRouter } from "./routes/health";
 import { metricsRouter } from "./routes/metrics";
 import { createStatsRouter } from "./routes/stats";
 import { createReconciliationRouter, type ReconciliationRouterOptions } from "./routes/reconciliation";
+import { createPaymentsRouter } from "./routes/payments";
 import { rateLimitMiddleware, registerRateLimitMiddleware, publicLimiter, authedLimiter, adminLimiter } from "./middleware/rateLimit";
 import { authMiddleware } from "./middleware/auth";
 import { createCorsMiddleware } from "./middleware/cors";
 import { compressionMiddleware } from "./middleware/compression";
-import { createCorsMiddleware } from "./middleware/cors";
 import { errorHandler } from "./middleware/errorHandler";
 import { readOnlyMiddleware } from "./middleware/readOnly";
-import { registerRateLimitMiddleware } from "./middleware/rateLimit";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { versioningMiddleware } from "./middleware/versioning";
 import { getOpenapiJson, getOpenapiYaml, openapiSpec, swaggerUiOptions } from "./docs";
-import { agentsRouter } from "./routes/agents";
-import { createAdminRouter } from "./routes/admin";
-import { healthRouter } from "./routes/health";
-import { createReconciliationRouter, type ReconciliationRouterOptions } from "./routes/reconciliation";
-import { createStatsRouter } from "./routes/stats";
-import { attachTaskStream, getStreamConnectionCount, type TaskStreamOptions } from "./routes/stream";
+import { createAdminQueueRouter } from "./routes/admin";
 import { createV1TasksRouter } from "./routes/v1/tasks";
 import { createV2TasksRouter } from "./routes/v2/tasks";
 import { createAuthRouter } from "./routes/auth";
@@ -66,21 +54,6 @@ import { type AuthService } from "../services/auth";
 import { createLogger } from "../utils/logger";
 import { createTaskDb, getTaskDb } from "../db/tasks";
 import { ValidationError, UnauthorizedError, NotFoundError, AppError } from "../errors";
-import { createHeartbeatService, type HeartbeatServiceOptions } from "../services/heartbeat";
-import { createTaskJobHandler } from "../coordinator/coordinator";
-import {
-  openapiSpec,
-  swaggerUiOptions,
-  getOpenapiJson,
-  getOpenapiYaml,
-} from "./docs";
-import {
-  getGlobalJobQueue,
-  JobWorker,
-  type JobQueue,
-} from "../queue";
-import { createAdminQueueRouter } from "./routes/admin";
-import { metricsService, metricsMiddleware } from "../services/metrics";
 
 export interface AppOptions {
   dispatch?: DispatchFn;
@@ -225,6 +198,9 @@ export function createApp(opts: AppOptions = {}): {
 
   // ── Versioning lifecycle endpoint (#426) ───────────────────────────────────
   app.use("/api/versions", createVersionsRouter());
+
+  // ── Payment history route ──────────────────────────────────────────────────
+  app.use("/api/payments", publicLimiter.middleware, createPaymentsRouter());
 
   // ── Payment reconciliation routes ──────────────────────────────────────────
   app.use("/api/reconciliation", createReconciliationRouter(opts.reconciliation));

@@ -7,6 +7,10 @@ module.exports = {
   testTimeout: 130_000,
   setupFilesAfterEnv: ['<rootDir>/tests/jestSetup.ts'],
   globalTeardown: '<rootDir>/tests/global-teardown.ts',
+  // Disable Prettier for inline snapshot formatting — Prettier 3 is
+  // incompatible with Jest's inline snapshot updater; setting null lets Jest
+  // use its own basic formatter instead (see jestjs.io/docs/configuration/#prettierpath-string).
+  prettierPath: null,
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {

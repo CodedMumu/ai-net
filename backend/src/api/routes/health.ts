@@ -25,7 +25,7 @@ router.get("/", cachedRoute("health"), (_req: Request, res: Response) => {
     version: config.NPM_PACKAGE_VERSION,
     stellarNetwork: config.STELLAR_NETWORK,
   });
-}
+});
 
 router.get("/", livenessHandler);
 

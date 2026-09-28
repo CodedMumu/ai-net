@@ -41,9 +41,19 @@ jobs:
               - 'tests/e2e/**'
               - 'smart-contracts/**'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/release-please.yml'
+              - '.release-please-*.json'
+              - '.versionrc.json'
+              - 'package.json'
+              - 'package-lock.json'
             frontend:
               - 'frontend/**'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/release-please.yml'
+              - '.release-please-*.json'
+              - '.versionrc.json'
+              - 'package.json'
+              - 'package-lock.json'
 
   backend:
     name: backend
@@ -74,6 +84,15 @@ jobs:
 
       - name: Unit tests & coverage
         run: npm run test:coverage
+
+      - name: Upload backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Performance latency budgets
         run: npm run test:performance
@@ -107,6 +126,15 @@ jobs:
 
       - name: Unit tests & coverage (vitest)
         run: npm run test:coverage
+
+      - name: Upload frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          if-no-files-found: warn
+          retention-days: 14
 
   frontend-visual:
     name: frontend-visual-regression

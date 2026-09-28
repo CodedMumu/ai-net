@@ -35,22 +35,26 @@ once pushed.
 ## Changelog Generation
 
 The project uses [Conventional Commits](https://www.conventionalcommits.org/)
-for automatic changelog entries. Each release includes a `CHANGELOG.md` update
-with sections:
+and [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Changelog entries
+use these sections:
 
-- **Features** — new functionality (`feat:`)
-- **Bug Fixes** — resolved issues (`fix:`)
-- **Breaking Changes** — backward-incompatible changes (`feat!:` or `BREAKING CHANGE:`)
-- **Other Changes** — docs, chores, refactors, tests
+- **Added** — new functionality (`feat:`)
+- **Changed** — performance, documentation, refactors, and maintenance
+- **Deprecated** — features scheduled for removal
+- **Removed** — removed features and reverted changes
+- **Fixed** — resolved defects (`fix:`)
+- **Security** — security improvements
 
-### Generate changelog since last tag
+### Generate changelog locally
 
 ```bash
-LAST_TAG=$(git describe --tags --abbrev=0)
-git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges
+npm run changelog
 ```
 
-Add the output under the appropriate section in `CHANGELOG.md`.
+This updates `CHANGELOG.md` from conventional commits without creating a version
+commit or tag. Release Please runs on pushes to `main` and opens or updates a
+release PR with the version bump and generated changelog; merging that PR creates
+the release tag.
 
 ---
 

@@ -32,8 +32,16 @@ services:
       - STELLAR_HORIZON_URL=http://stellar-standalone:8000
       - VENICE_API_KEY=${VENICE_API_KEY:-mock_local_key}
       - SKIP_STELLAR_ACCOUNT_VERIFY=true
+      # Log level configurable per service via env var (#116)
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       - sqlite_data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,environment"
     depends_on:
       stellar-standalone:
         condition: service_healthy
@@ -54,10 +62,84 @@ services:
       - VITE_API_BASE_URL=http://localhost:3000
       - VITE_STELLAR_NETWORK=standalone
       - VITE_SOROBAN_RPC_URL=http://localhost:8000/soroban/rpc
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
     depends_on:
       backend:
         condition: service_healthy
 
+  # ── Monitoring Profile (opt-in: docker compose --profile monitoring up) ──────
+  # Start the full observability stack with:
+  #   docker compose --profile monitoring up -d
+  # Access Grafana at http://localhost:3100 (user: admin / password: admin)
+
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: ai-net-loki
+    profiles: [monitoring]
+    ports:
+      - "3101:3100"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.1.0
+    container_name: ai-net-promtail
+    profiles: [monitoring]
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/tmp/promtail
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: ai-net-grafana
+    profiles: [monitoring]
+    ports:
+      - "3100:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3100
+      - GF_FEATURE_TOGGLES_ENABLE=lokiLogsDataplane
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./backend/grafana/ai-net-dashboard.json:/var/lib/grafana/dashboards/ai-net-dashboard.json:ro
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   sqlite_data:
+    driver: local
+  loki_data:
+    driver: local
+  promtail_positions:
+    driver: local
+  grafana_data:
     driver: local

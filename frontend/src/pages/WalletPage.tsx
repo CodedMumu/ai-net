@@ -100,7 +100,17 @@ function WalletPage() {
       await connect(secretInput.trim())
       setSecretInput('')
     } catch (err) {
-      setConnectError(err instanceof Error ? err.message : t('wallet.failedToConnect'))
+      const message = err instanceof Error ? err.message : ''
+      // Translate technical error messages into human-friendly guidance
+      if (message.toLowerCase().includes('invalid') || message.toLowerCase().includes('secret')) {
+        setConnectError(t('validation.invalidSecretKey', {
+          defaultValue: 'Enter a valid Stellar secret key starting with S (56 characters).',
+        }))
+      } else {
+        setConnectError(t('wallet.error.connectionFailed', {
+          defaultValue: 'Something went wrong connecting to your wallet. Try refreshing the page.',
+        }))
+      }
     } finally {
       setConnecting(false)
     }
@@ -112,7 +122,21 @@ function WalletPage() {
     try {
       await connectFreighter()
     } catch (err) {
-      setFreighterError(err instanceof Error ? err.message : t('wallet.failedToConnectFreighter'))
+      const message = err instanceof Error ? err.message : ''
+      // Translate extension / signature errors to human-friendly messages
+      if (message.toLowerCase().includes('not found') || message.toLowerCase().includes('extension') || message.toLowerCase().includes('install')) {
+        setFreighterError(t('wallet.error.extensionNotFound', {
+          defaultValue: 'Freighter wallet extension not found. Install it from freighter.app then refresh this page.',
+        }))
+      } else if (message.toLowerCase().includes('sign') || message.toLowerCase().includes('reject') || message.toLowerCase().includes('denied')) {
+        setFreighterError(t('wallet.error.signatureFailed', {
+          defaultValue: 'Wallet signature was rejected or timed out. Please try connecting again.',
+        }))
+      } else {
+        setFreighterError(t('wallet.error.connectionFailed', {
+          defaultValue: 'Something went wrong connecting to your wallet. Try refreshing the page.',
+        }))
+      }
     } finally {
       setFreighterConnecting(false)
     }
@@ -213,7 +237,7 @@ function WalletPage() {
             </p>
           )}
           {freighterError && (
-            <p className={styles.error} role="alert">
+            <p id="freighter-error" className={styles.error} role="alert" aria-live="polite">
               {freighterError}
             </p>
           )}
@@ -237,12 +261,13 @@ function WalletPage() {
               value={secretInput}
               onChange={(e) => setSecretInput(e.target.value)}
               aria-describedby="connect-error"
+              aria-invalid={Boolean(connectError)}
             />
             <p className={styles.securityWarning}>
               {t('wallet.securityWarning')}
             </p>
             {connectError && (
-              <p id="connect-error" className={styles.error} role="alert">
+              <p id="connect-error" className={styles.error} role="alert" aria-live="polite">
                 {connectError}
               </p>
             )}

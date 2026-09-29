@@ -14,7 +14,8 @@ This handbook establishes our **Software Development Life Cycle (SDLC)**, branch
 4. [Pull Request (PR) Workflow & Expectations](#4-pull-request-pr-workflow--expectations)
 5. [Testing & Quality Verification](#5-testing--quality-verification)
 6. [Review Checklist](#6-review-checklist)
-7. [Agent & Contributor Guidelines (`AGENTS.md`)](#7-agent--contributor-guidelines)
+7. [Frontend Architecture & Conventions](#7-frontend-architecture--conventions)
+8. [Agent & Contributor Guidelines (`AGENTS.md`)](#8-agent--contributor-guidelines)
 
 ---
 
@@ -179,6 +180,21 @@ Before marking a PR as ready for review:
 
 ---
 
-## 7. Agent & Contributor Guidelines
+## 7. Frontend Architecture & Conventions
+
+For frontend contributors, refer to [docs/FRONTEND_ARCHITECTURE.md](docs/FRONTEND_ARCHITECTURE.md) for:
+
+- Folder structure and file layout
+- Naming conventions (components, hooks, types, CSS)
+- State management patterns (Context + custom hooks)
+- Component patterns (atoms / molecules / organisms)
+- Styling conventions (CSS Modules + Tailwind + design tokens)
+- Error handling (`ErrorBoundary`, hook error states, toast notifications)
+- Testing approach (Vitest unit tests, Playwright E2E, visual regression)
+- How to add a new page or route end-to-end
+
+---
+
+## 8. Agent & Contributor Guidelines
 
 For AI coding agents and automated contributors, refer to [AGENTS.md](AGENTS.md) for strict architectural rules, toolchain conventions, and repository standards.

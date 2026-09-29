@@ -22,7 +22,7 @@ export class SequenceNumberManager {
    * Key   : Stellar public key (G…)
    * Value : promise that resolves when the current head of the queue finishes.
    */
-  private locks = new Map<string, Promise<void>>();
+  private locks = new Map<string, Promise<unknown>>();
 
   /**
    * Enqueue `fn` for `publicKey`.  `fn` will not start until every previously
@@ -32,35 +32,57 @@ export class SequenceNumberManager {
    * @param fn         Async work to serialize (load account → build → submit).
    * @returns          Whatever `fn` resolves with.
    */
-  async withAccount<T>(publicKey: string, fn: () => Promise<T>): Promise<T> {
-    // Grab whatever is currently at the tail of this account's queue, or an
-    // already-resolved promise if the queue is empty.
-    const current = this.locks.get(publicKey) ?? Promise.resolve();
+  withAccount<T>(publicKey: string, fn: () => Promise<T>): Promise<T> {
+    // Preserve FIFO ordering per source account by chaining each task behind the
+    // previous task and only releasing the next caller once the current result has
+    // actually been consumed by a .then/.catch/await handler.
+    const previous = this.locks.get(publicKey) ?? Promise.resolve();
+    const queued = previous.then(() => fn());
 
-    // Create the next tail: a promise whose resolver we'll call when fn settles.
-    let resolve!: () => void;
-    const next = new Promise<void>((r) => {
-      resolve = r;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
     });
 
-    // Publish our slot as the new tail so the next caller will wait for us.
-    this.locks.set(publicKey, next);
+    // Publish the gate as the current tail so the next caller won't proceed until
+    // the previous task's result has been handled.
+    this.locks.set(publicKey, gate);
 
-    // Wait for everything that was enqueued before us.
-    await current;
-
-    try {
-      return await fn();
-    } finally {
-      // Signal the next waiter that it may proceed.
-      resolve();
-
-      // Clean up the map entry if nothing else has enqueued behind us (i.e. we
-      // are still the tail).  This prevents unbounded map growth during idle
-      // periods while keeping the map alive as long as there are waiters.
-      if (this.locks.get(publicKey) === next) {
+    const finalize = () => {
+      release();
+      if (this.locks.get(publicKey) === gate) {
         this.locks.delete(publicKey);
       }
-    }
+    };
+
+    const wrapped: Promise<T> = {
+      then: (onFulfilled, onRejected) =>
+        queued.then(
+          (value) => {
+            const next: any = onFulfilled ? onFulfilled(value) : value;
+            finalize();
+            return next;
+          },
+          (error) => {
+            const next: any = onRejected ? onRejected(error) : Promise.reject(error);
+            finalize();
+            return next;
+          }
+        ),
+      catch: (onRejected) =>
+        queued.catch((error) => {
+          const next: any = onRejected ? onRejected(error) : Promise.reject(error);
+          finalize();
+          return next;
+        }),
+      finally: (onFinally) =>
+        queued.finally(() => {
+          const next: any = onFinally ? onFinally() : undefined;
+          finalize();
+          return next;
+        }),
+    } as Promise<T>;
+
+    return wrapped;
   }
 }

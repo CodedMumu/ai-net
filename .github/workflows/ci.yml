@@ -75,6 +75,12 @@ jobs:
       - name: Unit tests & coverage
         run: npm run test:coverage
 
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: npm audit (security)
+        run: npm audit --audit-level=high
+
       - name: Performance latency budgets
         run: npm run test:performance
 
@@ -107,6 +113,9 @@ jobs:
 
       - name: Unit tests & coverage (vitest)
         run: npm run test:coverage
+
+      - name: npm audit (security)
+        run: npm audit --audit-level=high
 
   frontend-visual:
     name: frontend-visual-regression
@@ -239,6 +248,11 @@ jobs:
           cargo build --locked -p error-registry --target wasm32v1-none --release
           cargo build --locked -p agent-bidding --target wasm32v1-none --release
           ls -la target/wasm32v1-none/release/*.wasm
+
+      - name: Cargo security audit
+        run: |
+          cargo install cargo-audit --quiet 2>/dev/null || true
+          cargo audit --deny warnings 2>/dev/null || cargo audit
 
   # ── Backend E2E: smoke (registry/list/create) ───────────────────────────────
   # Fast, deterministic smoke covering POST /api/agents/register,

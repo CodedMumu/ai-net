@@ -167,3 +167,12 @@ graph LR
 * **Contract Invariants**: Every financial transition requires cryptographic signature authorization (`require_auth()`).
 * **Circuit Breakers**: Venice AI and external LLM connectors implement fail-fast circuit breakers with exponential backoff.
 * **Idempotency**: All task dispatch and payment webhooks enforce deduplication keys stored in Redis.
+
+---
+
+## 5. Further Reading
+
+| Document | Description |
+|---|---|
+| [Smart Contract Architecture & Security Model](smart-contracts.md) | Contract dependency diagram, per-function authorization model, storage layouts, event schema reference, attack vectors and mitigations, upgrade safety guarantees, and economic security |
+| [Payment Flows & Escrow Lifecycle](payment-escrow-lifecycle.md) | Detailed sequence diagrams, contract state machine matrices, dispute filing flows, and reconciliation audit loops |

@@ -15,6 +15,7 @@ This handbook establishes our **Software Development Life Cycle (SDLC)**, branch
 5. [Testing & Quality Verification](#5-testing--quality-verification)
 6. [Review Checklist](#6-review-checklist)
 7. [Agent & Contributor Guidelines (`AGENTS.md`)](#7-agent--contributor-guidelines)
+8. [Release Engineering](#8-release-engineering)
 
 ---
 
@@ -182,3 +183,18 @@ Before marking a PR as ready for review:
 ## 7. Agent & Contributor Guidelines
 
 For AI coding agents and automated contributors, refer to [AGENTS.md](AGENTS.md) for strict architectural rules, toolchain conventions, and repository standards.
+
+---
+
+## 8. Release Engineering
+
+For the full release process — versioning scheme, release branches, quality gate, git tagging, changelog generation, artifact signing, smart contract upgrade sequences, post-release verification, and the hotfix process — refer to the dedicated guide:
+
+👉 **[docs/RELEASE_ENGINEERING.md](docs/RELEASE_ENGINEERING.md)**
+
+Key highlights:
+- **Versioning**: SemVer 2.0.0 across all tracks (backend, frontend, smart contracts)
+- **Quality gate**: `npm run gate` must be green before any tag is created
+- **Changelog**: automated via `scripts/generate-changelog.sh` (Conventional Commits)
+- **Artifact signing**: SHA256 checksums + GPG signatures for all Wasm artifacts
+- **Hotfixes**: branch from the last release tag, not `main`; patch-increment only

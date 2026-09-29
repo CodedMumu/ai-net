@@ -6,6 +6,7 @@ import { useAgentReputation } from '../../hooks/useAgentReputation'
 import { AgentReputationRadar } from './AgentReputationRadar'
 import { AgentReputationTrend } from './AgentReputationTrend'
 import { SkeletonText } from '../common/Skeleton'
+import { GlossaryHelp } from '../common/HelpIcon'
 import styles from './AgentDetailModal.module.css'
 
 const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
@@ -66,7 +67,9 @@ export function AgentDetailModal({ agent, onClose }: AgentDetailModalProps) {
 
           <div className={styles.field}>
             <dt>{t('common.price')}</dt>
-            <dd className={styles.value}>{agent.price.toFixed(2)} XLM</dd>
+            <dd className={styles.value}>
+              {agent.price.toFixed(2)} XLM <GlossaryHelp.XLM />
+            </dd>
           </div>
 
           <div className={styles.field}>
@@ -77,7 +80,9 @@ export function AgentDetailModal({ agent, onClose }: AgentDetailModalProps) {
           </div>
 
           <div className={styles.fieldWide}>
-            <dt>{t('common.capabilities')}</dt>
+            <dt>
+              {t('common.capabilities')} <GlossaryHelp.Capability />
+            </dt>
             <dd className={styles.pills}>
               {agent.capabilities.length === 0 ? (
                 <span className={styles.value}>—</span>

@@ -11,6 +11,7 @@ import { useToast } from '../../context/ToastContext';
 import { useTaskDraft } from '../../hooks/useTaskDraft';
 import { WizardProgress } from '../wallet/WizardProgress';
 import { WizardStep } from '../wallet/WizardStep';
+import { GlossaryHelp } from '../common/HelpIcon';
 import styles from './TaskWizard.module.css';
 import formStyles from './TaskSubmissionForm.module.css';
 import type { AgentPreference } from '../../services/taskService';
@@ -422,6 +423,7 @@ export function TaskSubmissionForm() {
           <section className={formStyles.reviewSection} aria-label="Cost estimate breakdown">
             <h3 className={formStyles.reviewSectionTitle}>
               {t('task.submit.costBreakdown', { defaultValue: 'Estimated Cost Breakdown' })}
+              {' '}<GlossaryHelp.XLM />
             </h3>
 
             {costBreakdown.agentCosts.length === 0 ? (

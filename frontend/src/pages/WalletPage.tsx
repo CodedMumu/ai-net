@@ -11,6 +11,7 @@ import { PaymentChart } from '../components/wallet/PaymentChart'
 import { TransactionTable } from '../components/wallet/TransactionTable'
 import { WalletWizard } from '../components/wallet/WalletWizard'
 import { Skeleton, SkeletonAvatar, SkeletonCard, SkeletonText } from '../components/common/Skeleton'
+import { GlossaryHelp } from '../components/common/HelpIcon'
 import styles from './WalletPage.module.css'
 
 const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
@@ -340,7 +341,10 @@ function WalletPage() {
       {/* Balance Card */}
       <div className={styles.balanceCard}>
         <div className={styles.balanceSection}>
-          <p className={styles.balanceTitle}>{t('wallet.availableBalance')}</p>
+          <p className={styles.balanceTitle}>
+            {t('wallet.availableBalance')}
+            <GlossaryHelp.XLM />
+          </p>
           {balanceDisplay}
         </div>
 

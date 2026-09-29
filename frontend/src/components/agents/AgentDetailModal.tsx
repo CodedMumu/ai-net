@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink } from 'lucide-react'
 import type { AgentRecord } from '../../types/api'
@@ -6,6 +7,7 @@ import { useAgentReputation } from '../../hooks/useAgentReputation'
 import { AgentReputationRadar } from './AgentReputationRadar'
 import { AgentReputationTrend } from './AgentReputationTrend'
 import { SkeletonText } from '../common/Skeleton'
+import { ConfirmDialog } from '../common/ConfirmDialog'
 import styles from './AgentDetailModal.module.css'
 
 const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
@@ -13,10 +15,13 @@ const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
 interface AgentDetailModalProps {
   agent: AgentRecord | null
   onClose: () => void
+  /** Optional: called after the user confirms deregistration */
+  onDeregister?: (agentId: string) => void
 }
 
-export function AgentDetailModal({ agent, onClose }: AgentDetailModalProps) {
+export function AgentDetailModal({ agent, onClose, onDeregister }: AgentDetailModalProps) {
   const { t } = useTranslation()
+  const [showDeregisterConfirm, setShowDeregisterConfirm] = useState(false)
   // Called unconditionally (hook rules) — it no-ops on an empty id, which is
   // what the closed-modal case passes.
   const { data: reputationData, loading: reputationLoading } = useAgentReputation(agent?.id ?? '')
@@ -29,6 +34,12 @@ export function AgentDetailModal({ agent, onClose }: AgentDetailModalProps) {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [agent, onClose])
+
+  const handleDeregisterConfirm = () => {
+    setShowDeregisterConfirm(false)
+    if (agent && onDeregister) onDeregister(agent.id)
+    onClose()
+  }
 
   if (!agent) return null
 
@@ -134,6 +145,30 @@ export function AgentDetailModal({ agent, onClose }: AgentDetailModalProps) {
             </dd>
           </div>
           </dl>
+
+          {onDeregister && (
+            <div className={styles.dangerZone}>
+              <button
+                type="button"
+                className={styles.deregisterButton}
+                onClick={() => setShowDeregisterConfirm(true)}
+                data-testid="deregister-agent-btn"
+              >
+                {t('agent.modal.deregister', { defaultValue: 'Deregister Agent' })}
+              </button>
+            </div>
+          )}
+
+          <ConfirmDialog
+            open={showDeregisterConfirm}
+            title={t('agent.deregisterConfirm.title', { defaultValue: 'Deregister Agent?' })}
+            description={t('agent.deregisterConfirm.description', { defaultValue: `You are about to permanently deregister "${agent.name}" from the network.` })}
+            consequence={t('agent.deregisterConfirm.consequence', { defaultValue: 'This agent will be removed from the registry. All task history associations will be lost and cannot be recovered.' })}
+            confirmLabel={t('agent.deregisterConfirm.confirm', { defaultValue: 'Deregister Agent' })}
+            cancelLabel={t('common.cancel', { defaultValue: 'Cancel' })}
+            onConfirm={handleDeregisterConfirm}
+            onCancel={() => setShowDeregisterConfirm(false)}
+          />
         </>
       )}
     </Modal>

@@ -154,3 +154,33 @@
   gap: 1.5rem;
   margin-top: 0.5rem;
 }
+
+.dangerZone {
+  margin-top: var(--space-6, 1.5rem);
+  padding-top: var(--space-5, 1.25rem);
+  border-top: 1px solid var(--status-danger-border, rgba(239, 68, 68, 0.3));
+  display: flex;
+  justify-content: flex-end;
+}
+
+.deregisterButton {
+  padding: 8px 18px;
+  border-radius: var(--radius-xl, 10px);
+  border: 1px solid var(--status-danger-border, rgba(239, 68, 68, 0.3));
+  background: var(--status-danger-surface, rgba(239, 68, 68, 0.12));
+  color: var(--status-danger, #ef4444);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.deregisterButton:hover {
+  background: var(--status-danger-surface-strong, rgba(239, 68, 68, 0.2));
+  border-color: var(--status-danger, #ef4444);
+}
+
+.deregisterButton:focus-visible {
+  outline: 2px solid var(--status-danger, #ef4444);
+  outline-offset: 2px;
+}

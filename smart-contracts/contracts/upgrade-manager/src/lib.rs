@@ -707,3 +707,6 @@ mod tests {
         assert_eq!(gas_estimate, expected);
     }
 }
+
+#[cfg(test)]
+mod integration_tests;

@@ -2733,3 +2733,5 @@ mod test;
 mod test_multisig;
 #[cfg(test)]
 mod property_tests;
+#[cfg(feature = "benchmarks")]
+mod benchmarks;

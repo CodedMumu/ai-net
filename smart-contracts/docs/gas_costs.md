@@ -104,6 +104,40 @@ Average reduction: **20.3%**, exceeding the 15% acceptance threshold.
 | `error-resolver` | Error count record/clear/query | Minimal per-agent counters; no extra reads introduced |
 | `task_store` | Task create/update/query | Per-task records; no unbounded collection mutation in this change |
 | `upgrade-manager` | Migration planning/execution | Existing estimator retained; no data migration in this change |
+| `payment_escrow` | Escrow create/release/dispute/expire | Per-escrow temporary records; bounded single-record operations |
 
 The unit tests in `contracts/agent_registry/src/test.rs` assert the benchmark
 tables and the >=15% average reduction guard.
+
+## On-chain Reputation (issue #191)
+
+New operations added to `agent_registry`:
+
+| Operation | Estimated CU | Notes |
+|-----------|-------------:|-------|
+| `update_reputation` (first call) | ~48,000 | Persistent write + TTL extend + event emit |
+| `update_reputation` (subsequent) | ~52,000 | Read + write + TTL extend + event emit |
+| `get_reputation` (cold) | ~18,000 | Persistent read + TTL extend |
+| `get_reputation` (warm) | ~12,000 | Persistent read (key in footprint) |
+| `set_task_store` | ~22,000 | Instance write + audit record |
+
+Storage overhead per agent: one `ReputationScore` record in Persistent storage
+(~80 bytes: two `u32`, one `u32` score, one `i128` payout). TTL extended to
+`TTL_EXTEND_TO = 241,920` ledgers (~14 days) on every update and read.
+
+## Payment Escrow (issue #192)
+
+New contract `payment_escrow`:
+
+| Operation | Estimated CU | Notes |
+|-----------|-------------:|-------|
+| `create_escrow` | ~55,000 | Temporary write + TTL set + event emit |
+| `release_escrow` | ~42,000 | Temporary read + write + event emit |
+| `dispute_escrow` | ~44,000 | Temporary read + write + event emit |
+| `expire_escrow` | ~38,000 | Temporary read + write + event emit |
+| `get_escrow` | ~14,000 | Temporary read |
+
+Storage: one `EscrowRecord` per task in Temporary storage. TTL set to
+`timeout_ledger` on creation; Soroban auto-expires the entry if neither
+release nor dispute is called in time. Dispute hold window: 48 ledgers (~4 min
+at 5 s/ledger).

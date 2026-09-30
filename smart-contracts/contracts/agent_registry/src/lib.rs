@@ -41,6 +41,12 @@ pub use types::*;
 #[cfg(test)]
 mod upgrade_tests;
 
+#[cfg(test)]
+mod fuzz_tests;
+
+#[cfg(test)]
+mod comprehensive_unit_tests;
+
 pub use shared_exit_codes::CommonExitCode;
 pub use upgrade::*;
 

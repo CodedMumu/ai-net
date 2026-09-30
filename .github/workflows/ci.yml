@@ -115,10 +115,6 @@ jobs:
     # server), not the full production bundle `frontend`'s `npm run build`
     # type-checks — so it doesn't need that job to pass, and shouldn't be
     # blocked by an unrelated tsc error in a page these tests don't visit.
-    # Screenshot comparisons are inherently more environment-sensitive than
-    # unit/type checks; don't block merges on this suite yet. Failures are
-    # still visible on the PR checks list and via the uploaded report.
-    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Pinned to the @playwright/test version resolved in package-lock.json.
@@ -129,6 +125,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.61.0-jammy
     env:
       TZ: UTC
+      PERCY_TOKEN: ${{ secrets.PERCY_TOKEN }}
     defaults:
       run:
         working-directory: frontend

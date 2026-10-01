@@ -229,6 +229,86 @@ jobs:
       - name: Cargo tests
         run: cargo test --locked -p error-resolver -p error-registry -p agent-registry -p agent-bidding
 
+      # ── Coverage measurement with cargo-llvm-cov ─────────────────────────
+      # Measures line coverage for all contracts compiled for the native host
+      # target (wasm32v1-none does not support llvm-cov instrumentation).
+      # Reports are uploaded as CI artifacts and the job fails if any measured
+      # package drops below 90 % line coverage.
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Measure contract coverage
+        run: |
+          cargo llvm-cov \
+            --locked \
+            -p error-resolver \
+            -p error-registry \
+            -p agent-registry \
+            -p agent-bidding \
+            --lcov \
+            --output-path lcov.info
+
+      - name: Upload coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-coverage-lcov
+          path: smart-contracts/lcov.info
+          retention-days: 14
+
+      - name: Enforce 90 % line coverage threshold
+        run: |
+          # Parse the lcov.info to compute per-crate line coverage and fail
+          # if any measured package drops below 90 %.
+          python3 - <<'PY'
+          import sys, re
+
+          lcov_path = "lcov.info"
+          crate_lines_found = {}
+          crate_lines_hit    = {}
+          current_crate = None
+
+          with open(lcov_path) as f:
+              for line in f:
+                  line = line.rstrip()
+                  if line.startswith("SF:"):
+                      path = line[3:]
+                      # Derive a crate name from the path segment after "contracts/"
+                      m = re.search(r'/contracts/([^/]+)/', path)
+                      if m:
+                          current_crate = m.group(1)
+                      else:
+                          current_crate = "other"
+                  elif line.startswith("LF:"):
+                      val = int(line[3:])
+                      crate_lines_found[current_crate] = crate_lines_found.get(current_crate, 0) + val
+                  elif line.startswith("LH:"):
+                      val = int(line[3:])
+                      crate_lines_hit[current_crate] = crate_lines_hit.get(current_crate, 0) + val
+
+          threshold = 0.90
+          failed = []
+          print(f"{'Package':<30} {'Hit':>8} {'Found':>8} {'Coverage':>10}")
+          print("-" * 60)
+          for crate, found in crate_lines_found.items():
+              hit = crate_lines_hit.get(crate, 0)
+              pct = hit / found if found > 0 else 1.0
+              status = "✅" if pct >= threshold else "❌"
+              print(f"{crate:<30} {hit:>8} {found:>8} {pct*100:>9.1f}% {status}")
+              if pct < threshold:
+                  failed.append((crate, pct))
+
+          if failed:
+              print()
+              print("FAILED: the following packages are below the 90% line coverage threshold:")
+              for crate, pct in failed:
+                  print(f"  {crate}: {pct*100:.1f}%")
+              sys.exit(1)
+          else:
+              print()
+              print("All packages meet the 90% line coverage threshold.")
+          PY
+
       # Optimized Wasm builds for the deployable contracts.
       # (error-resolver is exercised natively above; its Wasm target is
       # currently blocked by a serde dependency that does not compile for

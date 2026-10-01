@@ -11,6 +11,9 @@ import { defineConfig, devices } from '@playwright/test';
  * Baselines are generated/verified with the `mcr.microsoft.com/playwright`
  * Docker image pinned to the `@playwright/test` version in package.json, so
  * local updates match what CI renders. See `tests/visual/README.md`.
+ *
+ * Three viewport projects are defined so every UI surface is captured at
+ * mobile (375 px), tablet (768 px), and desktop (1440 px) widths.
  */
 export default defineConfig({
   testDir: './tests/visual',
@@ -23,22 +26,40 @@ export default defineConfig({
     ['list'],
   ],
   expect: {
-    // Small threshold for anti-aliasing/font-rendering noise between runs;
-    // anything above this is treated as a real visual regression.
+    // 0.1 % pixel-difference threshold — tight enough to catch real regressions
+    // while absorbing font-rendering noise between identical Linux builds.
+    // See docs/visual-regression-testing.md for the rationale.
     toHaveScreenshot: {
-      maxDiffPixelRatio: 0.02,
+      maxDiffPixelRatio: 0.001,
       animations: 'disabled',
     },
   },
   use: {
     baseURL: 'http://localhost:3000',
-    viewport: { width: 1440, height: 900 },
     trace: 'retain-on-failure',
   },
   projects: [
     {
-      name: 'visual-chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'visual-desktop',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+      },
+    },
+    {
+      name: 'visual-tablet',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 768, height: 1024 },
+      },
+    },
+    {
+      name: 'visual-mobile',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 375, height: 812 },
+        isMobile: false,
+      },
     },
   ],
   webServer: {

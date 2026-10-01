@@ -144,6 +144,28 @@ docker compose up -d
 
 ---
 
+### Staging Environment
+
+Every merge to `main` that passes CI automatically deploys to the staging environment via `.github/workflows/staging-deploy.yml`:
+
+1. Multi-arch Docker images for frontend and backend are built and pushed to GHCR (`ghcr.io/<owner>/ai-net/frontend:staging`, `…/backend:staging`).
+2. Smart contracts are deployed to Stellar testnet via `./smart-contracts/scripts/deploy.sh --network testnet`.
+3. Containers are updated on the staging host with `docker compose up -d`.
+4. Smoke tests verify `GET /health → 200` and `GET /api/agents → valid JSON`.
+5. On success, a deployment summary (image SHAs, run URL) is written to the workflow run summary.
+6. On failure, a GitHub issue is opened automatically with the failure log attached.
+
+| Environment | Frontend URL | Backend URL |
+|---|---|---|
+| Staging | `$STAGING_FRONTEND_URL` (set in `staging` env secrets) | `$STAGING_BACKEND_URL` |
+| Local | `http://localhost:5173` | `http://localhost:3000` |
+
+The workflow can also be triggered manually via **Actions → Staging Deployment → Run workflow**.
+
+See [docs/DEVELOPER_SETUP.md](docs/DEVELOPER_SETUP.md#staging-environment) for the required secrets configuration.
+
+---
+
 ### Manual / Local Prerequisites
 
 - Node.js >= 20

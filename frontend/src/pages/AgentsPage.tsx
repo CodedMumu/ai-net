@@ -28,6 +28,7 @@ import { AgentFilterBar } from '../components/agents/AgentFilterBar'
 import { AgentDetailModal } from '../components/agents/AgentDetailModal'
 import { AgentRegistryCard } from '../components/agents/AgentRegistryCard'
 import { EmptyState } from '../components/common/EmptyState'
+import { FeatureErrorBoundary } from '../components/common/FeatureErrorBoundary'
 import { Skeleton, SkeletonCard } from '../components/common/Skeleton'
 import type { AgentRecord } from '../types/api'
 import {
@@ -232,6 +233,7 @@ function AgentsPage() {
         </div>
       </div>
 
+      <FeatureErrorBoundary featureName="Registry Browser">
       {/* ── Error state ───────────────────────────────────────────────────── */}
       {error && !loading ? (
         <div className={styles.errorBox} id="registry-error" role="alert">
@@ -319,6 +321,7 @@ function AgentsPage() {
       )}
 
       <AgentDetailModal agent={selected} onClose={() => setSelected(null)} />
+      </FeatureErrorBoundary>
     </div>
   )
 }

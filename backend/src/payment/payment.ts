@@ -1,57 +1,18 @@
 import {
   Keypair,
-  Server,
-  TransactionBuilder,
   Operation,
   Asset,
   Claimant,
-  BASE_FEE,
 } from "@stellar/stellar-sdk";
 import type { PaymentDb, PaymentRecord } from "../db/index";
 import {
   PaymentAlreadyReleasedError,
-  HorizonUnavailableError,
   xlmToStroops,
   stroopsToXlm,
 } from "./utils";
 import { tracingService } from "../services/tracing";
 import { currentTraceId } from "../services/traceContext";
-import { getConfig } from "../config";
-
-const MAX_RETRIES = 5;
-
-function isRetryable(err: unknown): boolean {
-  const message = (err as { message?: string })?.message ?? "";
-  // Horizon error codes for TIMEOUT and TOO_MANY_REQUESTS
-  const extras = (
-    err as {
-      response?: { data?: { extras?: { result_codes?: { transaction?: string } } } };
-    }
-  )?.response?.data?.extras?.result_codes?.transaction ?? "";
-  return (
-    message.includes("TIMEOUT") ||
-    message.includes("TOO_MANY_REQUESTS") ||
-    message.includes("504") ||
-    message.includes("429") ||
-    extras === "tx_too_late"
-  );
-}
-
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
-  let attempt = 0;
-  while (true) {
-    try {
-      return await fn();
-    } catch (err) {
-      attempt++;
-      if (!isRetryable(err) || attempt >= MAX_RETRIES) {
-        if (isRetryable(err)) throw new HorizonUnavailableError(MAX_RETRIES);
-        throw err;
-      }
-      await new Promise((r) => setTimeout(r, 200 * 2 ** (attempt - 1)));
-    }
-  }
-}
+import { StellarService } from "../services/stellarService";
 
 export interface PaymentServiceHooks {
   /**
@@ -62,16 +23,14 @@ export interface PaymentServiceHooks {
 }
 
 export class PaymentService {
-  private server: Server;
-  private networkPassphrase: string;
+  private readonly stellarService: StellarService;
 
   constructor(
     private db: PaymentDb,
-    private hooks: PaymentServiceHooks = {}
+    private hooks: PaymentServiceHooks = {},
+    stellarService?: StellarService,
   ) {
-    const config = getConfig();
-    this.server = new Server(config.STELLAR_HORIZON_URL);
-    this.networkPassphrase = config.STELLAR_NETWORK_PASSPHRASE;
+    this.stellarService = stellarService ?? new StellarService();
   }
 
   /**
@@ -98,15 +57,7 @@ export class PaymentService {
       const amountStroops = xlmToStroops(amountXLM);
       const amountStr = stroopsToXlm(amountStroops);
 
-      const account = await withRetry(() =>
-        this.server.loadAccount(coordinatorKeypair.publicKey())
-      );
-
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.networkPassphrase,
-      })
-        .addOperation(
+      const tx = await this.stellarService.buildTransaction(coordinatorKeypair, [
           Operation.createClaimableBalance({
             asset: Asset.native(),
             amount: amountStr,
@@ -114,17 +65,13 @@ export class PaymentService {
               new Claimant(agentPublicKey, Claimant.predicateUnconditional()),
               new Claimant(coordinatorKeypair.publicKey(), Claimant.predicateUnconditional()),
             ],
-          })
-        )
-        .setTimeout(30)
-        .build();
+          }),
+        ]);
 
       // Derive balance ID before signing — deterministic from the operation
       const balanceId = tx.getClaimableBalanceId(0);
 
-      tx.sign(coordinatorKeypair);
-
-      await withRetry(() => this.server.submitTransaction(tx));
+      await this.stellarService.submitTransaction(tx.toXDR());
 
       this.db.insert({
         taskId,
@@ -163,24 +110,11 @@ export class PaymentService {
       : null;
 
     try {
-      const account = await withRetry(() =>
-        this.server.loadAccount(coordinatorKeypair.publicKey())
-      );
+      const tx = await this.stellarService.buildTransaction(coordinatorKeypair, [
+        Operation.claimClaimableBalance({ balanceId: record.balanceId }),
+      ]);
 
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.networkPassphrase,
-      })
-        .addOperation(
-          Operation.claimClaimableBalance({ balanceId: record.balanceId })
-        )
-        .setTimeout(30)
-        .build();
-
-      tx.sign(coordinatorKeypair);
-
-      const result = await withRetry(() => this.server.submitTransaction(tx));
-      const txHash = (result as unknown as { hash: string }).hash;
+      const { hash: txHash } = await this.stellarService.submitTransaction(tx.toXDR());
 
       this.db.updateStatus(taskId, nodeId, "released", txHash);
 
@@ -210,24 +144,11 @@ export class PaymentService {
       throw new PaymentAlreadyReleasedError(taskId, nodeId);
     }
 
-    const account = await withRetry(() =>
-      this.server.loadAccount(coordinatorKeypair.publicKey())
-    );
+    const tx = await this.stellarService.buildTransaction(coordinatorKeypair, [
+      Operation.claimClaimableBalance({ balanceId: record.balanceId }),
+    ]);
 
-    const tx = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: this.networkPassphrase,
-    })
-      .addOperation(
-        Operation.claimClaimableBalance({ balanceId: record.balanceId })
-      )
-      .setTimeout(30)
-      .build();
-
-    tx.sign(coordinatorKeypair);
-
-    const result = await withRetry(() => this.server.submitTransaction(tx));
-    const txHash = (result as unknown as { hash: string }).hash;
+    const { hash: txHash } = await this.stellarService.submitTransaction(tx.toXDR());
 
     this.db.updateStatus(taskId, nodeId, "refunded", txHash);
     return txHash;

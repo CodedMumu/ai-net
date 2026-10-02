@@ -64,6 +64,13 @@
   transform: scale(0.94);
 }
 
+/* Visible focus indicators for keyboard navigation (#101) */
+.hamburger:focus-visible,
+.sidebar-toggle:focus-visible {
+  outline: 2px solid var(--accent, #8b5cf6);
+  outline-offset: 2px;
+}
+
 .logo {
   font-size: 20px;
   font-weight: 700;
@@ -192,6 +199,11 @@
 .disconnect-btn:active {
   background: #b91c1c;
   transform: scale(0.96);
+}
+
+.disconnect-btn:focus-visible {
+  outline: 2px solid var(--accent, #8b5cf6);
+  outline-offset: 2px;
 }
 
 .language-switcher {

@@ -124,6 +124,23 @@ ai-net/
 
 ---
 
+## Staging Environment
+
+The staging environment is automatically deployed on every merge to `main`.
+
+| Property | Value |
+|---|---|
+| **Backend API** | `https://staging.ai-net.dev` |
+| **Health check** | `https://staging.ai-net.dev/health` |
+| **Metrics** | `https://staging.ai-net.dev/metrics` |
+| **Stellar Network** | Testnet (not standalone) |
+| **Triggered by** | Merge to `main` via [Staging Deployment](.github/workflows/staging-deploy.yml) workflow |
+
+Docker images are built, tagged with the commit SHA, and pushed to [GitHub Container Registry](https://ghcr.io).  
+For rollback instructions see [staging/ROLLBACK.md](staging/ROLLBACK.md).
+
+---
+
 ## Getting Started
 
 ### Quick Start (Docker Compose — Recommended)

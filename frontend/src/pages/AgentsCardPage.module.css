@@ -11,15 +11,25 @@
   margin-top: 16px;
 }
 
-@media (max-width: 640px) {
+/* Mobile: single column below 640px */
+@media (max-width: 639px) {
   .cardGrid {
     grid-template-columns: 1fr;
   }
 }
 
-@media (min-width: 641px) and (max-width: 960px) {
+/* Tablet: 2 columns from 640px–1023px (covers 768x1024 and 1024x1366 viewports) */
+@media (min-width: 640px) and (max-width: 1023px) {
   .cardGrid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+}
+
+/* Desktop: auto-fill with min 280px per card (3+ columns) */
+@media (min-width: 1024px) {
+  .cardGrid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
 }
 

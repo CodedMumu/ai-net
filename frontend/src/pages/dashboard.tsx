@@ -10,6 +10,7 @@ import { NetworkHealthBadge } from '../components/dashboard/NetworkHealthBadge';
 import { RecentTasksTable } from '../components/dashboard/RecentTasksTable';
 import { useToast } from '../hooks/useToast';
 import { Skeleton, SkeletonAvatar, SkeletonCard, SkeletonTable } from '../components/common/Skeleton';
+import { FeatureErrorBoundary } from '../components/common/FeatureErrorBoundary';
 import styles from './dashboard.module.css';
 import type { TimePoint, NetworkStats } from '../types/api';
 
@@ -120,13 +121,17 @@ export const DashboardPage: React.FC = () => {
         <KpiCard title={t('page.dashboard.totalXLM')} value={kpiData.totalXLMTransacted} sparklineData={xlmSeries} loading={loading} />
         <KpiCard title={t('page.dashboard.uptime')} value={`${kpiData.uptimePercent.toFixed(2)}%`} sparklineData={uptimeSeries} loading={loading} />
       </section>
-      <section className={styles.health}>
-        <NetworkHealthBadge uptimePercent={kpiData.uptimePercent} />
-      </section>
-      <section className={styles.recentTasks}>
-        <h2 className={styles.heading}>{t('page.dashboard.recentTasks')}</h2>
-        <RecentTasksTable walletAddress={address ?? ''} loading={loading} />
-      </section>
+      <FeatureErrorBoundary featureName="Agent Status">
+        <section className={styles.health}>
+          <NetworkHealthBadge uptimePercent={kpiData.uptimePercent} />
+        </section>
+      </FeatureErrorBoundary>
+      <FeatureErrorBoundary featureName="Task List">
+        <section className={styles.recentTasks}>
+          <h2 className={styles.heading}>{t('page.dashboard.recentTasks')}</h2>
+          <RecentTasksTable walletAddress={address ?? ''} loading={loading} />
+        </section>
+      </FeatureErrorBoundary>
     </DashboardLayout>
   );
 };

@@ -307,7 +307,7 @@ impl TaskStoreContract {
 
         // Emit event.
         env.events().publish(
-            (symbol_short!("task_str"), symbol_short!("ts_created")),
+            (symbol_short!("task_store"), symbol_short!("task_created")),
             TaskStoreCreatedEvent {
                 version: TASK_LIFECYCLE_EVENT_VERSION,
                 task_id: next_id,
@@ -349,7 +349,7 @@ impl TaskStoreContract {
 
         // Emit event.
         env.events().publish(
-            (symbol_short!("task_str"), symbol_short!("ts_assigned")),
+            (symbol_short!("task_store"), symbol_short!("task_assigned")),
             TaskStoreAssignedEvent {
                 version: TASK_LIFECYCLE_EVENT_VERSION,
                 task_id,
@@ -394,7 +394,7 @@ impl TaskStoreContract {
 
         // Emit event.
         env.events().publish(
-            (symbol_short!("task_str"), symbol_short!("ts_cmplt")),
+            (symbol_short!("task_store"), symbol_short!("task_completed")),
             TaskStoreCompletedEvent {
                 version: TASK_LIFECYCLE_EVENT_VERSION,
                 task_id,
@@ -449,7 +449,7 @@ impl TaskStoreContract {
 
         // Emit event.
         env.events().publish(
-            (symbol_short!("task_str"), symbol_short!("ts_failed")),
+            (symbol_short!("task_store"), symbol_short!("task_failed")),
             TaskStoreFailedEvent {
                 version: TASK_LIFECYCLE_EVENT_VERSION,
                 task_id,
@@ -785,7 +785,7 @@ mod test {
         assert_eq!(events.len(), 1);
         assert_eq!(
             events.get(0).unwrap().1,
-            (symbol_short!("task_str"), symbol_short!("ts_created")).into_val(&fixture.env)
+            (symbol_short!("task_store"), symbol_short!("task_created")).into_val(&fixture.env)
         );
     }
 
@@ -850,7 +850,7 @@ mod test {
         assert_eq!(events.len(), 1);
         assert_eq!(
             events.get(0).unwrap().1,
-            (symbol_short!("task_str"), symbol_short!("ts_assigned")).into_val(&fixture.env)
+            (symbol_short!("task_store"), symbol_short!("task_assigned")).into_val(&fixture.env)
         );
     }
 
@@ -921,7 +921,7 @@ mod test {
         assert_eq!(events.len(), 1);
         assert_eq!(
             events.get(0).unwrap().1,
-            (symbol_short!("task_str"), symbol_short!("ts_cmplt")).into_val(&fixture.env)
+            (symbol_short!("task_store"), symbol_short!("task_completed")).into_val(&fixture.env)
         );
     }
 
@@ -989,7 +989,7 @@ mod test {
         assert_eq!(events.len(), 1);
         assert_eq!(
             events.get(0).unwrap().1,
-            (symbol_short!("task_str"), symbol_short!("ts_failed")).into_val(&fixture.env)
+            (symbol_short!("task_store"), symbol_short!("task_failed")).into_val(&fixture.env)
         );
     }
 

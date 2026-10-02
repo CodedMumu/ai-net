@@ -25,27 +25,25 @@ import { getGlobalJobQueue, JobWorker, type JobQueue } from "../queue";
 import { createHeartbeatService, type HeartbeatServiceOptions } from "../services/heartbeat";
 import { metricsMiddleware, metricsService } from "../services/metrics";
 import type { EventStore } from "../events/eventStore";
+import { createEventStore } from "../events/eventStore";
 import {
   attachTaskStream,
   getStreamConnectionCount,
   type TaskStreamOptions,
 } from "./routes/stream";
 import type { DAGNode } from "../types/task";
+import type { AgentRegistry } from "../types/agent";
 import { agentsRouter } from "./routes/agents";
 import { healthRouter } from "./routes/health";
 import { metricsRouter } from "./routes/metrics";
 import { createStatsRouter } from "./routes/stats";
-import {
-  createReconciliationRouter,
-  type ReconciliationRouterOptions,
-} from "./routes/reconciliation";
+import { createReconciliationRouter, type ReconciliationRouterOptions } from "./routes/reconciliation";
 import {
   rateLimitMiddleware,
   registerRateLimitMiddleware,
   publicLimiter,
   authedLimiter,
   adminLimiter,
-  veniceProxyLimiter,
 } from "./middleware/rateLimit";
 import { createCorsMiddleware } from "./middleware/cors";
 import { compressionMiddleware } from "./middleware/compression";
@@ -59,31 +57,12 @@ import { createAdminQueueRouter } from "./routes/admin";
 import { createV1TasksRouter } from "./routes/v1/tasks";
 import { createV2TasksRouter } from "./routes/v2/tasks";
 import { createAuthRouter } from "./routes/auth";
+import { createFlagsRouter } from "./routes/flags";
+import { createVersionsRouter } from "./routes/versions";
 import { type AuthService } from "../services/auth";
 import { createLogger } from "../utils/logger";
 import { AppError } from "../errors";
 import { getConfig } from "../config";
-
-// These are imported dynamically in some environments; declare the shape here.
-type AgentRegistry = {
-  getAgents: (type: string) => Promise<Array<{ cost: number; url: string }>>;
-};
-
-// Flags and version routers may not be present in all builds; guard with try/catch.
-let createFlagsRouter: (() => ReturnType<typeof import("express").Router>) | null = null;
-let createVersionsRouter: (() => ReturnType<typeof import("express").Router>) | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  createFlagsRouter = require("./routes/flags").createFlagsRouter;
-} catch {
-  // Optional route — ignore if not present.
-}
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  createVersionsRouter = require("./routes/versions").createVersionsRouter;
-} catch {
-  // Optional route — ignore if not present.
-}
 
 export interface AppOptions {
   dispatch?: DispatchFn;
@@ -130,14 +109,10 @@ export function createApp(opts: AppOptions = {}): {
   const app = express();
   const httpServer = createServer(app);
 
-  // ── Core middleware ─────────────────────────────────────────────────────────
   app.use(express.json());
   app.use((_req, res, next) => {
     if (config.NODE_ENV === "production") {
-      res.setHeader(
-        "Strict-Transport-Security",
-        "max-age=31536000; includeSubDomains; preload",
-      );
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
     }
     next();
   });
@@ -145,6 +120,7 @@ export function createApp(opts: AppOptions = {}): {
   app.use(requestId);
   app.use(requestLogger);
   app.use(metricsMiddleware);
+  app.use(rateLimitMiddleware);
   app.use(versioningMiddleware);
   app.use(
     readOnlyMiddleware({
@@ -156,7 +132,6 @@ export function createApp(opts: AppOptions = {}): {
     app.use(...compressionMiddleware());
   }
 
-  // ── Background services ─────────────────────────────────────────────────────
   const dispatch: DispatchFn = opts.dispatch ?? makeHttpDispatch(opts.agentRegistry);
   const releasePayment: PaymentReleaseFn =
     opts.releasePayment ?? createPaymentReleaseFn(tryLoadStellarRelease());
@@ -182,66 +157,51 @@ export function createApp(opts: AppOptions = {}): {
     heartbeatService.start();
   }
 
+  // ── API docs (Swagger UI) ──────────────────────────────────────────────────
+  app.use(
+    "/docs",
+    swaggerUi.serve,
+    swaggerUi.setup(openapiSpec, swaggerUiOptions),
+  );
+  app.get("/docs/swagger.json", (_req: Request, res: Response) => {
+    res.json(getOpenapiJson());
+  });
+  app.get("/docs/swagger.yaml", (_req: Request, res: Response) => {
+    res.setHeader("Content-Type", "application/yaml");
+    res.send(getOpenapiYaml());
+  });
+  app.get("/openapi.json", (_req: Request, res: Response) => {
+    res.json(openapiSpec);
+  });
+  app.get("/openapi.yaml", (_req: Request, res: Response) => {
+    res.setHeader("Content-Type", "application/yaml");
+    res.send(getOpenapiYaml());
+  });
+
   // ── Health routes ───────────────────────────────────────────────────────────
-  // Public limiter: 100 req/min per IP.
   app.use("/health", publicLimiter.middleware, healthRouter);
 
-  // ── Metrics routes ─────────────────────────────────────────────────────────
+  // ── Metrics routes ────────────────────────────────────────────────────────
   app.use("/metrics", metricsRouter);
   app.use("/api/metrics", metricsRouter);
 
   // ── Stats routes ───────────────────────────────────────────────────────────
-  // Public limiter: 100 req/min per IP.
   app.use("/api/stats", publicLimiter.middleware, createStatsRouter(getTaskDb()));
 
   // ── Auth routes ────────────────────────────────────────────────────────────
   app.use("/api/auth", createAuthRouter(opts.authService));
 
   // ── Agent routes ───────────────────────────────────────────────────────────
-  // Public reads use the public limiter (100 req/min per IP).
-  // Registration uses the stricter per-IP register limiter.
   app.use("/api/agents", publicLimiter.middleware);
   app.post("/api/agents/register", registerRateLimitMiddleware);
   app.use("/api/agents", agentsRouter);
 
-  // ── OpenAPI spec ────────────────────────────────────────────────────────────
-  app.get("/openapi.json", (_req: Request, res: Response) => {
-    res.json(openapiSpec);
-  });
-  app.get("/openapi.yaml", (_req: Request, res: Response) => {
-    res.type("text/yaml").send(getOpenapiYaml());
-  });
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openapiSpec, swaggerUiOptions));
-
-  // ── Task routes ─────────────────────────────────────────────────────────────
-  // Two limiters are stacked:
-  //   1. authedLimiter  — 30 req/min per wallet (authenticated rate budget)
-  //   2. veniceProxyLimiter — 10 req/min per wallet (upstream Venice AI quota)
-  //
-  // The Venice proxy limiter is applied only to POST requests because GET/DELETE
-  // do not invoke Venice AI. All mutating task requests ultimately trigger a
-  // Venice AI inference call, so the 10 req/min guard prevents a single wallet
-  // from saturating the shared Venice quota.
+  // ── Task routes ────────────────────────────────────────────────────────────
   const v1TasksRouter = createV1TasksRouter(dispatch, releasePayment, jobQueue);
   const v2TasksRouter = createV2TasksRouter(dispatch, releasePayment, jobQueue);
 
-  // Apply authed + venice proxy limits to task creation (POST).
-  app.post(
-    "/api/tasks",
-    authedLimiter.middleware,
-    veniceProxyLimiter.middleware,
-    (req, res, next) => {
-      const apiVersion = (res.locals.apiVersion as string | undefined) || "1.0";
-      if (apiVersion.startsWith("1.")) {
-        return v1TasksRouter(req, res, next);
-      }
-      return v2TasksRouter(req, res, next);
-    },
-  );
-
-  // Apply only authed limiter to read/cancel task endpoints.
   app.use("/api/tasks", authedLimiter.middleware, (req, res, next) => {
-    const apiVersion = (res.locals.apiVersion as string | undefined) || "1.0";
+    const apiVersion = (res.locals.apiVersion as string) || "1.0";
     if (apiVersion.startsWith("1.")) {
       return v1TasksRouter(req, res, next);
     }
@@ -249,24 +209,21 @@ export function createApp(opts: AppOptions = {}): {
   });
 
   // ── Admin Queue routes ─────────────────────────────────────────────────────
-  // Admin limiter: 20 req/min per IP.
   app.use("/api/admin/queue", adminLimiter.middleware, createAdminQueueRouter(jobQueue));
   app.use("/api/admin", adminLimiter.middleware, createAdminQueueRouter(jobQueue));
 
-  // ── Feature-flag admin routes ───────────────────────────────────────────────
-  if (createFlagsRouter) {
-    app.use("/api/admin/flags", createFlagsRouter());
-  }
+  // ── Feature-flag admin routes (#425) ───────────────────────────────────────
+  app.use("/api/admin/flags", createFlagsRouter());
 
-  // ── Versioning lifecycle endpoint ───────────────────────────────────────────
-  if (createVersionsRouter) {
-    app.use("/api/versions", createVersionsRouter());
-  }
+  // ── Versioning lifecycle endpoint (#426) ───────────────────────────────────
+  app.use("/api/versions", createVersionsRouter());
 
   // ── Payment reconciliation routes ──────────────────────────────────────────
   app.use("/api/reconciliation", createReconciliationRouter(opts.reconciliation));
 
-  // ── 404 fallthrough ─────────────────────────────────────────────────────────
+  // ── Rate-limit status endpoint ─────────────────────────────────────────────
+  app.use("/api/ratelimit", publicLimiter.middleware);
+
   app.use((_req: Request, res: Response) => {
     res.status(404).json({
       error: { message: "Not found", code: "NOT_FOUND" },
@@ -277,8 +234,8 @@ export function createApp(opts: AppOptions = {}): {
 
   app.use(errorHandler);
 
-  // ── WebSocket task stream ───────────────────────────────────────────────────
-  const eventStore = opts.eventStore;
+  // ── WebSocket task stream ──────────────────────────────────────────────────
+  const eventStore: EventStore = opts.eventStore ?? createEventStore();
   const detachStream = attachTaskStream({
     httpServer,
     eventStore,
@@ -297,11 +254,6 @@ export function createApp(opts: AppOptions = {}): {
   }));
 
   function close(callback?: () => void): void {
-    // Drain first: wait for in-flight jobs to finish (bounded by
-    // jobWorkerStopTimeoutMs) before we stop accepting connections. A job
-    // still active when the drain window elapses is NOT force-failed — it
-    // stays "active" in the store and is picked back up by the next
-    // JobWorker.start() via recoverIncompleteJobs().
     jobWorker.stop(opts.jobWorkerStopTimeoutMs ?? 10_000).finally(() => {
       heartbeatService.stop();
       metricsService.setWebSocketProbe(null);
@@ -314,8 +266,7 @@ export function createApp(opts: AppOptions = {}): {
     });
   }
 
-  const routeCount = (app as unknown as { _router?: { stack?: unknown[] } })._router?.stack
-    ?.length;
+  const routeCount = (app as unknown as { _router?: { stack?: unknown[] } })._router?.stack?.length;
   logger.debug({ routeCount }, "api app initialized");
   return { httpServer, close };
 }
@@ -323,10 +274,6 @@ export function createApp(opts: AppOptions = {}): {
 /**
  * Build a DispatchFn that looks up the cheapest agent for a node's type in the
  * provided registry and forwards the call to that agent via HTTP.
- *
- * If no registry is provided (e.g. during tests that supply their own dispatch)
- * the returned function throws a clear error so misconfiguration is obvious at
- * runtime rather than producing a silent no-op.
  */
 function makeHttpDispatch(registry?: AgentRegistry): DispatchFn {
   return async (_taskId: string, node: DAGNode, context: string): Promise<unknown> => {
@@ -336,7 +283,7 @@ function makeHttpDispatch(registry?: AgentRegistry): DispatchFn {
       );
     }
 
-    const agents = (await registry.getAgents(node.type)).filter((agent) => agent.status === "online");
+    const agents = await registry.getAgents(node.type);
     if (!agents || agents.length === 0) {
       throw new AppError(`No agent registered for type: ${node.type}`, 500, "AGENT_NOT_FOUND");
     }

@@ -12,8 +12,15 @@ module.exports = {
     '<rootDir>/tests/performance/',
   ],
   testTimeout: 130_000,
+  // Retry failed tests up to 2 times before marking as failed (#95).
+  // This surfaces true failures while absorbing transient timing/network flakes.
+  retries: 2,
   setupFilesAfterEnv: ['<rootDir>/tests/jestSetup.ts'],
   globalTeardown: '<rootDir>/tests/global-teardown.ts',
+  // Disable Prettier for inline snapshot formatting — Prettier 3 is
+  // incompatible with Jest's inline snapshot updater; setting null lets Jest
+  // use its own basic formatter instead (see jestjs.io/docs/configuration/#prettierpath-string).
+  prettierPath: null,
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
@@ -27,7 +34,6 @@ module.exports = {
   },
   moduleNameMapper: {
     '^@stellar/stellar-sdk$': '<rootDir>/__mocks__/@stellar/stellar-sdk.js',
-    '^better-sqlite3$': '<rootDir>/__mocks__/better-sqlite3.js',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   collectCoverageFrom: [

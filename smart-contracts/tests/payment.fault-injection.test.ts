@@ -125,6 +125,9 @@ beforeEach(() => {
 
 // ── F4: Horizon 429 → exponential backoff retries ─────────────────────────────
 
+// FLAKY: patches global.setTimeout to make backoff retries instant; any
+// concurrent test that also reads global.setTimeout (e.g. heartbeat cleanup)
+// can see the patched version if teardown races. Tracked in #95.
 describe('F4 · Horizon 429 rate limit → retry with backoff', () => {
   it('retries 5 times on 429 and then throws', async () => {
     const err429 = new Error('Rate limit exceeded');

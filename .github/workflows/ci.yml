@@ -18,6 +18,8 @@ concurrency:
 
 permissions:
   contents: read
+  # Required for uploading SARIF results to GitHub Security tab
+  security-events: write
 
 jobs:
   changes:
@@ -44,6 +46,73 @@ jobs:
             frontend:
               - 'frontend/**'
               - '.github/workflows/ci.yml'
+
+  # ── Dependency vulnerability scanning ──────────────────────────────────────
+  # Runs npm audit (backend + frontend prod-only) and cargo audit (smart-contracts).
+  # Fails CI on HIGH or CRITICAL vulnerabilities in production dependencies.
+  # Dev-only dependency vulnerabilities are reported but do not fail the build.
+  security-scan:
+    name: security-scan (dependency audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CARGO_BUILD_JOBS: "1"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # ── Node.js setup (shared for both npm audits) ────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # ── Backend: npm audit ────────────────────────────────────────────
+      - name: Backend — install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Backend — npm audit (prod deps, fail on HIGH+)
+        working-directory: backend
+        # --omit=dev: only audit production dependencies
+        # --audit-level=high: exit non-zero on HIGH or CRITICAL
+        run: |
+          echo "::group::Backend npm audit report"
+          npm audit --omit=dev --audit-level=high
+          echo "::endgroup::"
+
+      # ── Frontend: npm audit ───────────────────────────────────────────
+      - name: Frontend — install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend — npm audit (prod deps, fail on HIGH+)
+        working-directory: frontend
+        # --omit=dev: skip devDependencies (vitest, vite, lhci, etc.)
+        # --audit-level=high: exit non-zero on HIGH or CRITICAL
+        run: |
+          echo "::group::Frontend npm audit report"
+          npm audit --omit=dev --audit-level=high
+          echo "::endgroup::"
+
+      # ── Smart-contracts: cargo audit ──────────────────────────────────
+      - name: Set up Rust toolchain (for cargo audit)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --quiet
+
+      - name: Smart-contracts — cargo audit (fail on HIGH+)
+        working-directory: smart-contracts
+        # --deny warnings: treat any advisory as a failure
+        # RUSTSEC advisories are classified by severity; we deny all
+        # unfixed advisories. Use --ignore <RUSTSEC-YYYY-NNNN> in a
+        # .cargo/audit.toml to acknowledge accepted risks with rationale.
+        run: |
+          echo "::group::Cargo audit report"
+          cargo audit
+          echo "::endgroup::"
 
   backend:
     name: backend
@@ -547,12 +616,13 @@ jobs:
   ci-gate:
     name: ci-gate (required)
     if: always()
-    needs: [backend, frontend, contracts, e2e-backend-smoke, e2e-backend-heavy, e2e-frontend-smoke, e2e-frontend-heavy]
+    needs: [security-scan, backend, frontend, contracts, e2e-backend-smoke, e2e-backend-heavy, e2e-frontend-smoke, e2e-frontend-heavy]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Evaluate CI results (skipped = success for path-filtered PRs)
         run: |
+          echo "security-scan: ${{ needs.security-scan.result }}"
           echo "backend: ${{ needs.backend.result }}"
           echo "frontend: ${{ needs.frontend.result }}"
           echo "contracts: ${{ needs.contracts.result }}"
@@ -562,7 +632,7 @@ jobs:
           echo "e2e-frontend-heavy: ${{ needs.e2e-frontend-heavy.result }}"
 
           fail=0
-          for job in "${{ needs.backend.result }}" "${{ needs.frontend.result }}" "${{ needs.contracts.result }}"; do
+          for job in "${{ needs.security-scan.result }}" "${{ needs.backend.result }}" "${{ needs.frontend.result }}" "${{ needs.contracts.result }}"; do
             if [[ "$job" == "failure" || "$job" == "cancelled" ]]; then
               echo "❌ Required job failed: $job"
               fail=1

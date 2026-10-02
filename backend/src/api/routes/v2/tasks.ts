@@ -13,6 +13,7 @@ import { currentTraceId } from "../../../services/traceContext";
 import { getConfig } from "../../../config";
 
 import { getGlobalJobQueue, type JobQueue, type JobPriority } from "../../../queue";
+import { createCancelTaskRouter } from "../cancel";
 
 // ── Validation config ────────────────────────────────────────────────────────
 const DAILY_TASK_LIMIT = Number(process.env.DAILY_TASK_LIMIT_PER_WALLET ?? 100);
@@ -314,6 +315,9 @@ export function createV2TasksRouter(
       },
     });
   });
+
+  // POST /api/tasks/:id/cancel — full cancellation with refund (Issue #41)
+  tasksRouter.use("/:id/cancel", createCancelTaskRouter({ queue: jobQueue }));
 
   return tasksRouter;
 }

@@ -243,6 +243,8 @@ Send periodic heartbeat signal to keep agent status active in the registry.
 #### `POST /api/v1/tasks`
 Submit a new computational task for decentralized agent dispatch.
 
+* **Idempotency**: Optionally send an `Idempotency-Key` header containing a UUID v4 generated with `crypto.randomUUID()`. Keys are scoped to the wallet and retained for 24 hours. Repeated requests return the original response with `X-Idempotency-Replay: true`; malformed keys return `400 Bad Request`.
+
 * **Request Body**:
   ```json
   {
@@ -262,6 +264,7 @@ Submit a new computational task for decentralized agent dispatch.
   curl -s -X POST http://localhost:3000/api/v1/tasks \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer <jwt_token>" \
+    -H "Idempotency-Key: $(uuidgen)" \
     -d '{
       "taskType": "smart_contract_audit",
       "requiredCapability": "risk",

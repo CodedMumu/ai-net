@@ -11,6 +11,7 @@ import { PaymentChart } from '../components/wallet/PaymentChart'
 import { TransactionTable } from '../components/wallet/TransactionTable'
 import { WalletWizard } from '../components/wallet/WalletWizard'
 import { Skeleton, SkeletonAvatar, SkeletonCard, SkeletonText } from '../components/common/Skeleton'
+import { FeatureErrorBoundary } from '../components/common/FeatureErrorBoundary'
 import styles from './WalletPage.module.css'
 
 const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
@@ -392,19 +393,21 @@ function WalletPage() {
         <div className={styles.sendSection}>
           <SendXLMForm />
         </div>
-        <div className={styles.historySection}>
-          <PaymentChart transactions={transactions} />
-          <TransactionTable
-            transactions={transactions}
-            loading={txLoading}
-            publicKey={publicKey}
-          />
-          {txError && (
-            <p className={styles.error} role="alert">
-              {t('wallet.txHistoryError', { error: txError })}
-            </p>
-          )}
-        </div>
+        <FeatureErrorBoundary featureName="Payment History">
+          <div className={styles.historySection}>
+            <PaymentChart transactions={transactions} />
+            <TransactionTable
+              transactions={transactions}
+              loading={txLoading}
+              publicKey={publicKey}
+            />
+            {txError && (
+              <p className={styles.error} role="alert">
+                {t('wallet.txHistoryError', { error: txError })}
+              </p>
+            )}
+          </div>
+        </FeatureErrorBoundary>
       </div>
     </div>
   )

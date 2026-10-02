@@ -3,10 +3,12 @@ import { z } from "zod";
 import { Horizon, Keypair } from "@stellar/stellar-sdk";
 import { getAgentDb, createAgentDb, AgentDb } from "../../db/agents";
 import { heartbeatRateLimitMiddleware } from "../middleware/rateLimit";
-import { NotFoundError, ValidationError, UnauthorizedError, AppError } from "../../errors";
+import { NotFoundError, UnauthorizedError, AppError } from "../../errors";
 import { cacheMiddleware } from "../middleware/cache";
 import { invalidateAgentsCache } from "../../cache/invalidation";
 import { ttlForRoute } from "../../config";
+import { emptyBodySchema, stellarPublicKeySchema } from "../../schemas/common";
+import { validate } from "../middleware/validate";
 
 const AgentCursorListSchema = z.object({
   cursor: z.string().optional(),
@@ -22,16 +24,14 @@ export interface AgentsRouterOptions {
   db?: AgentDb;
 }
 
-const STELLAR_PUBLIC_KEY_REGEX = /^G[A-Z2-7]{55}$/;
-
 // Mirrors the RegisterAgentRequest schema documented in api/docs.ts.
 const RegisterAgentSchema = z.object({
-  agentId: z.string().min(1),
-  capabilities: z.array(z.string()).min(1),
-  pricingXLM: z.number().min(0.001),
-  endpoint: z.string().url(),
-  stellarPublicKey: z.string().regex(STELLAR_PUBLIC_KEY_REGEX, "Invalid Stellar public key format"),
-});
+  agentId: z.string().trim().min(1).max(128),
+  capabilities: z.array(z.string().trim().min(1).max(64)).min(1).max(50),
+  pricingXLM: z.number().finite().min(0.001).max(1_000_000),
+  endpoint: z.string().url().max(2048),
+  stellarPublicKey: stellarPublicKeySchema,
+}).strict();
 
 const DEFAULT_HEALTH_TIMEOUT_MS = 3_000;
 const HORIZON_URL = process.env.STELLAR_HORIZON_URL || "https://horizon-testnet.stellar.org";
@@ -248,19 +248,9 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
    *         description: Registration rate limit exceeded
    */
   // POST /api/agents/register
-  router.post("/register", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  router.post("/register", validate(RegisterAgentSchema), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const correlationId = res.locals.correlationId as string | undefined;
-      const parse = RegisterAgentSchema.safeParse(req.body);
-      if (!parse.success) {
-        throw new ValidationError(
-          "Invalid agent registration data",
-          { issues: parse.error.flatten() },
-          correlationId,
-        );
-      }
-
-      const data = parse.data;
+      const data = req.body as z.infer<typeof RegisterAgentSchema>;
 
       // Verify Stellar account exists
       if (process.env.SKIP_STELLAR_ACCOUNT_VERIFY !== "true") {
@@ -346,7 +336,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
    *               $ref: '#/components/schemas/RateLimitError'
    */
   // POST /api/agents/:id/heartbeat
-  router.post("/:id/heartbeat", heartbeatRateLimitMiddleware, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  router.post("/:id/heartbeat", validate(emptyBodySchema), heartbeatRateLimitMiddleware, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const db = getDb();
       const agent = db.findById(req.params.id);

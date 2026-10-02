@@ -9,6 +9,7 @@
 [![Stellar](https://img.shields.io/badge/Built%20on-Stellar-blue)](https://stellar.org)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Good First Issues](https://img.shields.io/github/issues/Epta-Node/ai-net/good%20first%20issue)](https://github.com/Epta-Node/ai-net/issues?q=label%3A%22good+first+issue%22)
+[![Status](https://img.shields.io/badge/status-page-brightgreen)](https://status.ai-net.app)
 
 ---
 
@@ -269,6 +270,8 @@ npm run test:e2e
 - [Release Engineering Guide](docs/RELEASE_ENGINEERING.md): Tagging, changelog generation, artifact signing, and release checklists.
 - [Frontend Architecture & Conventions](docs/FRONTEND_ARCHITECTURE.md): Folder structure, naming rules, state management, and component patterns.
 - [Frontend Visual Regression Testing](docs/visual-regression-testing.md): Screenshot coverage per UI surface, diff threshold, and the baseline update flow.
+- [Database Backup & Disaster Recovery](docs/DATABASE_BACKUP_DR.md): Automated daily backups to S3 with AES-256 encryption, 30-day retention, restore procedures, and quarterly DR drill guide.
+- [Uptime Monitoring & Status Page](docs/UPTIME_MONITORING.md): External monitoring setup for all production endpoints, alerting via email + Slack, and incident response procedure. Public status page: [https://status.ai-net.app](https://status.ai-net.app).
 
 ---
 

@@ -115,6 +115,35 @@ find . -name "*.wasm" -exec sha256sum {} \; > SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
 
+### SBOM (Software Bill of Materials)
+
+Every GitHub Release includes SBOM artifacts (`sbom-root.json`, `sbom-frontend.json`, `sbom-backend.json`) generated automatically by the `smart-contracts.yml` release workflow using `@cyclonedx/cyclonedx-npm`. These files enumerate all npm dependencies in CycloneDX JSON format and allow downstream users to audit the full dependency tree.
+
+```bash
+# Manually generate the SBOM for the root workspace
+npm ci --ignore-scripts
+npx @cyclonedx/cyclonedx-npm --output-format JSON --output-file sbom.json
+
+# Validate the SBOM with cyclonedx-cli (optional)
+cyclonedx validate --input-file sbom.json --input-format json
+```
+
+### Security Audits
+
+Automated security audits run on every PR via CI:
+
+```bash
+# npm audit — fails on high/critical CVEs
+npm audit --audit-level=high          # root
+cd frontend && npm audit --audit-level=high
+cd backend && npm audit --audit-level=high
+
+# Cargo audit — fails on high/critical CVEs in Rust dependencies
+cd smart-contracts && cargo audit
+```
+
+Dependabot is configured to automatically raise PRs for outdated or vulnerable dependencies on a weekly schedule (see `.github/dependabot.yml`). Security alert PRs should be treated with the same rigor as production code — review, test, and merge promptly.
+
 ### Wasm Artifact Verification
 
 After downloading a release artifact:

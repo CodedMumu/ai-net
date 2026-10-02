@@ -14,7 +14,8 @@
     "test:coverage": "npm --prefix backend run test:coverage && npm --prefix frontend run test:coverage",
     "changelog": "standard-version --skip.bump --skip.tag --skip.commit",
     "test:e2e": "jest --config tests/e2e/jest.config.js --runInBand",
-    "test:e2e:coverage": "jest --config tests/e2e/jest.config.js --runInBand --coverage"
+    "test:e2e:coverage": "jest --config tests/e2e/jest.config.js --runInBand --coverage",
+    "docs:generate": "npm --prefix backend run docs:generate && npm --prefix frontend run docs:generate"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "12.3.0",
@@ -27,6 +28,10 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/git": "10.0.1",
+    "conventional-changelog-conventionalcommits": "8.0.0",
+    "semantic-release": "24.1.0",
     "@types/better-sqlite3": "^7.6.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.17",

@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -29,7 +29,7 @@ jobs:
           targets: wasm32v1-none
 
       - name: Cache Cargo registry and build artefacts
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload benchmark output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gas-benchmark-results
           path: smart-contracts/target/debug/.cargo-lock

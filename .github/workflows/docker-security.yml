@@ -28,13 +28,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build backend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: backend/Dockerfile
@@ -42,7 +42,7 @@ jobs:
           load: true
 
       - name: Build frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: frontend/Dockerfile
@@ -50,7 +50,7 @@ jobs:
           load: true
 
       - name: Run Trivy vulnerability scanner (backend)
-        uses: aquasecurity/trivy-action@0.31.3
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ai-net-backend:ci
           format: sarif
@@ -60,7 +60,7 @@ jobs:
           ignore-unfixed: false
 
       - name: Run Trivy vulnerability scanner (frontend)
-        uses: aquasecurity/trivy-action@0.31.3
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ai-net-frontend:ci
           format: sarif
@@ -71,14 +71,14 @@ jobs:
 
       - name: Upload backend SARIF report
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-backend.sarif
           category: trivy-backend
 
       - name: Upload frontend SARIF report
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-frontend.sarif
           category: trivy-frontend

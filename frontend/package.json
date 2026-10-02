@@ -15,7 +15,9 @@
     "test:visual:update": "playwright test --config playwright.visual.config.ts --update-snapshots",
     "lint": "eslint src --ext .ts,.tsx",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
-    "format:fix": "prettier --write \"src/**/*.{ts,tsx,css}\""
+    "format:fix": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "test:mutation": "stryker run",
+    "test:mutation:services": "stryker run --mutate 'src/services/**/*.ts'"
   },
   "dependencies": {
     "@hookform/resolvers": "3.9.1",
@@ -43,6 +45,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
     "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.45.0",
     "@testing-library/jest-dom": "6.6.3",

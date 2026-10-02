@@ -9,6 +9,7 @@
 [![Stellar](https://img.shields.io/badge/Built%20on-Stellar-blue)](https://stellar.org)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Good First Issues](https://img.shields.io/github/issues/Epta-Node/ai-net/good%20first%20issue)](https://github.com/Epta-Node/ai-net/issues?q=label%3A%22good+first+issue%22)
+[![Status](https://img.shields.io/badge/status-page-brightgreen)](https://status.ai-net.app)
 
 ---
 
@@ -116,9 +117,27 @@ ai-net/
 
 ## Documentation & Integration Guides
 
+- [SDK Quickstart](docs/SDK_QUICKSTART.md) — Go from zero to a registered, heartbeating agent in under 30 minutes.
 - [AI-Agent Integration Guide](docs/ai-agent-integration-guide.md) — Step-by-step guide for registering third-party agents, staking bonds, heartbeats, task execution, and dispute resolution.
 - [Smart Contract Deployment & Upgrades](smart-contracts/docs/DEPLOYMENT_GUIDE.md) — Deployment and upgrade workflows.
 - [Storage Migration Guide](smart-contracts/docs/STORAGE_MIGRATION.md) — Storage migration guidelines.
+
+---
+
+## Staging Environment
+
+The staging environment is automatically deployed on every merge to `main`.
+
+| Property | Value |
+|---|---|
+| **Backend API** | `https://staging.ai-net.dev` |
+| **Health check** | `https://staging.ai-net.dev/health` |
+| **Metrics** | `https://staging.ai-net.dev/metrics` |
+| **Stellar Network** | Testnet (not standalone) |
+| **Triggered by** | Merge to `main` via [Staging Deployment](.github/workflows/staging-deploy.yml) workflow |
+
+Docker images are built, tagged with the commit SHA, and pushed to [GitHub Container Registry](https://ghcr.io).  
+For rollback instructions see [staging/ROLLBACK.md](staging/ROLLBACK.md).
 
 ---
 
@@ -141,6 +160,28 @@ docker compose up -d
 # - Backend API: http://localhost:3000 (Health: http://localhost:3000/health)
 # - Stellar Standalone RPC: http://localhost:8000/soroban/rpc
 ```
+
+---
+
+### Staging Environment
+
+Every merge to `main` that passes CI automatically deploys to the staging environment via `.github/workflows/staging-deploy.yml`:
+
+1. Multi-arch Docker images for frontend and backend are built and pushed to GHCR (`ghcr.io/<owner>/ai-net/frontend:staging`, `…/backend:staging`).
+2. Smart contracts are deployed to Stellar testnet via `./smart-contracts/scripts/deploy.sh --network testnet`.
+3. Containers are updated on the staging host with `docker compose up -d`.
+4. Smoke tests verify `GET /health → 200` and `GET /api/agents → valid JSON`.
+5. On success, a deployment summary (image SHAs, run URL) is written to the workflow run summary.
+6. On failure, a GitHub issue is opened automatically with the failure log attached.
+
+| Environment | Frontend URL | Backend URL |
+|---|---|---|
+| Staging | `$STAGING_FRONTEND_URL` (set in `staging` env secrets) | `$STAGING_BACKEND_URL` |
+| Local | `http://localhost:5173` | `http://localhost:3000` |
+
+The workflow can also be triggered manually via **Actions → Staging Deployment → Run workflow**.
+
+See [docs/DEVELOPER_SETUP.md](docs/DEVELOPER_SETUP.md#staging-environment) for the required secrets configuration.
 
 ---
 
@@ -238,6 +279,28 @@ npm run dev
 npm test
 ```
 
+### Run backend load tests
+
+The scheduled k6 suite covers 100 concurrent agent-list readers for 60 seconds,
+20 concurrent task submissions, 50 authenticated WebSocket subscribers, and a
+200 requests/second task-polling simulation. It checks the read p95, submission
+p99, and error-rate SLOs. k6 prints p50/p95/p99 summaries and the scheduled CI
+run uploads machine-readable JSON summaries as an artifact.
+
+Install k6, then start the local backend stack and run any scenario:
+
+```bash
+docker compose up -d stellar-standalone backend
+k6 run tests/load/scenarios/get-agents.js
+k6 run tests/load/scenarios/submit-tasks.js
+k6 run tests/load/scenarios/websocket-subscribers.js
+k6 run tests/load/scenarios/poll-task.js
+```
+
+Set `BASE_URL` to target a non-local backend. The WebSocket and polling scripts
+create a seed task through the API. Results from the scheduled run are available
+in the `backend-load-reports` workflow artifact.
+
 ### Run smart-contract E2E tests
 
 The full market report pipeline test runs against Stellar testnet and is expected
@@ -257,6 +320,7 @@ npm run test:e2e
 
 ## Documentation
 
+- [SDK Quickstart](docs/SDK_QUICKSTART.md): Go from zero to a registered, heartbeating, task-completing agent in under 30 minutes.
 - [Developer Setup Guide](docs/DEVELOPER_SETUP.md): Fast onboarding from clean clone to running local node, testnet deployments, Freighter wallet setup, and testing.
 - [Architecture Specification](docs/architecture/index.md): System context, component architecture, Mermaid sequence diagrams, and security model.
 - [REST API Reference](docs/API_REFERENCE.md): Comprehensive per-endpoint documentation, error codes taxonomy, authentication headers, and runnable curl examples.
@@ -267,6 +331,8 @@ npm run test:e2e
 - [Release Engineering Guide](docs/RELEASE_ENGINEERING.md): Tagging, changelog generation, artifact signing, and release checklists.
 - [Frontend Architecture & Conventions](docs/FRONTEND_ARCHITECTURE.md): Folder structure, naming rules, state management, and component patterns.
 - [Frontend Visual Regression Testing](docs/visual-regression-testing.md): Screenshot coverage per UI surface, diff threshold, and the baseline update flow.
+- [Database Backup & Disaster Recovery](docs/DATABASE_BACKUP_DR.md): Automated daily backups to S3 with AES-256 encryption, 30-day retention, restore procedures, and quarterly DR drill guide.
+- [Uptime Monitoring & Status Page](docs/UPTIME_MONITORING.md): External monitoring setup for all production endpoints, alerting via email + Slack, and incident response procedure. Public status page: [https://status.ai-net.app](https://status.ai-net.app).
 
 ---
 

@@ -209,9 +209,11 @@ describe("PaymentService retry logic", () => {
     const svc = new PaymentService(db);
     const kp = StellarSdk.Keypair.fromSecret("SABC");
 
-    await expect(svc.lock("t1", "n1", kp, "GAGENT", 1)).rejects.toThrow(
-      HorizonUnavailableError
-    );
+    await expect(svc.lock("t1", "n1", kp, "GAGENT", 1)).rejects.toMatchObject({
+      code: "STELLAR_HORIZON_UNAVAILABLE",
+      statusCode: 503,
+      message: "Stellar Horizon unavailable after 5 attempts",
+    });
   });
 
   it("retries on TOO_MANY_REQUESTS and succeeds on 3rd attempt", async () => {

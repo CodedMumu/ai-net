@@ -12,6 +12,7 @@ import ErrorBoundary from './components/common/ErrorBoundary'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { CommandPalette } from './components/common/CommandPalette'
 import { useCommandPalette } from './hooks/useCommandPalette'
+import OnboardingModal from './components/onboarding/OnboardingModal'
 import './components/common/Toast.css'
 
 // Lives INSIDE <Router> and the theme/wallet providers: useCommandPalette()
@@ -94,6 +95,9 @@ const RoutedContent: React.FC = () => {
         onClose={closePalette}
         commands={commands}
       />
+
+      {/* Onboarding modal — shown to first-time users, skippable, dismissable (#99) */}
+      <OnboardingModal />
     </>
   )
 }

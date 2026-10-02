@@ -57,6 +57,7 @@ import { agentsRouter } from "./routes/agents";
 import { createAdminRouter } from "./routes/admin";
 import { healthRouter } from "./routes/health";
 import { createReconciliationRouter, type ReconciliationRouterOptions } from "./routes/reconciliation";
+import { createEventsRouter } from "./routes/events";
 import { createStatsRouter } from "./routes/stats";
 import { attachTaskStream, getStreamConnectionCount, type TaskStreamOptions } from "./routes/stream";
 import { createV1TasksRouter } from "./routes/v1/tasks";
@@ -228,6 +229,9 @@ export function createApp(opts: AppOptions = {}): {
 
   // ── Payment reconciliation routes ──────────────────────────────────────────
   app.use("/api/reconciliation", createReconciliationRouter(opts.reconciliation));
+
+  // ── Contract event indexer routes (Issue #52) ──────────────────────────────
+  app.use("/api/events", publicLimiter.middleware, createEventsRouter());
 
   app.use((_req: Request, res: Response) => {
     res.status(404).json({

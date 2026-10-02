@@ -7,6 +7,7 @@ import { NotFoundError, ValidationError, UnauthorizedError, AppError } from "../
 import { cacheMiddleware } from "../middleware/cache";
 import { invalidateAgentsCache } from "../../cache/invalidation";
 import { ttlForRoute } from "../../config";
+import { authMiddleware } from "../middleware/auth";
 
 const AgentCursorListSchema = z.object({
   cursor: z.string().optional(),
@@ -345,7 +346,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
    *               $ref: '#/components/schemas/RateLimitError'
    */
   // POST /api/agents/:id/heartbeat
-  router.post("/:id/heartbeat", heartbeatRateLimitMiddleware, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  router.post("/:id/heartbeat", authMiddleware, heartbeatRateLimitMiddleware, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const db = getDb();
       const agent = db.findById(req.params.id);
@@ -353,7 +354,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
         return next(agentNotFound(req.params.id));
       }
 
-      db.upsert({ ...agent, lastSeenAt: new Date().toISOString(), status: "online" });
+      db.updateLastSeen(req.params.id);
       const updated = db.findById(req.params.id);
 
       // Await invalidation so the updated lastSeenAt is visible on the next GET
@@ -423,7 +424,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
    *               $ref: '#/components/schemas/NotFoundError'
    */
   // DELETE /api/agents/:id
-  router.delete("/:id", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  router.delete("/:id", authMiddleware, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const correlationId = res.locals.correlationId as string | undefined;
       const db = getDb();

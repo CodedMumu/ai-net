@@ -15,7 +15,9 @@
     "test:flaky": "node ../scripts/detect-flaky-tests.js --suite frontend --runs 5",
     "lint": "eslint src --ext .ts,.tsx",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
-    "format:fix": "prettier --write \"src/**/*.{ts,tsx,css}\""
+    "format:fix": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o storybook-static"
   },
   "dependencies": {
     "@hookform/resolvers": "3.9.1",

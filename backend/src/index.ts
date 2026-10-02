@@ -17,6 +17,8 @@ import { eventBus } from "./coordinator/eventBus";
 import { createDefaultReconciliationService } from "./services/reconciliation";
 import { createLogger } from "./utils/logger";
 import { redactedConfigSnapshot } from "./config";
+import { createTaskDb, getTaskDb } from "./db/tasks";
+import { TaskResultStorageService } from "./services/taskResultStorage";
 
 async function main() {
   const logger = createLogger({ module: "server" });
@@ -36,6 +38,9 @@ async function main() {
     // Start agent cleanup service
     const cleanupService = new AgentCleanupService();
     cleanupService.start();
+
+    const taskResultStorage = new TaskResultStorageService(createTaskDb(getTaskDb()));
+    taskResultStorage.startCleanup();
 
     // Start daily payment reconciliation
     const reconciliationService = createDefaultReconciliationService();
@@ -77,6 +82,7 @@ async function main() {
       }, 10_000);
 
       cleanupService.stop();
+      taskResultStorage.stopCleanup();
       reconciliationService.stop();
       maintenanceService.stop();
       errorRegistryMaintenance.stop();

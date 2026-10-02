@@ -51,7 +51,7 @@ use events::{
     AdminChangedEvent, AgentDeregisteredEvent, AgentRegisteredEvent, AnalyticsRecordedEvent,
     ErrorReportedEvent, ErrorResolvedEvent, LeaderboardUpdatedEvent, OperationApproved,
     OperationCancelled, OperationExecuted, OperationProposed, RegistryInitializedEvent,
-    SlaBonusAwardedEvent, SlaSetEvent, SlaViolationDetectedEvent,
+    ReputationUpdatedEvent, SlaBonusAwardedEvent, SlaSetEvent, SlaViolationDetectedEvent,
 };
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Map, String, Symbol,
@@ -309,6 +309,11 @@ pub enum DataKey {
     AuditConfig,
     /// Rolling operation counter for one caller.
     CallerActivity(Address),
+    // On-chain reputation keys (issue #191)
+    /// Reputation record for one agent.
+    Reputation(Address),
+    /// Address of the task_store contract authorised to write reputation updates.
+    TaskStoreContract,
 }
 
 /// Per-item result for batch registration.
@@ -2878,6 +2883,119 @@ impl AgentRegistryContract {
     pub fn error_mapper(_env: Env, raw_code: u32) -> Option<CommonExitCode> {
         shared_exit_codes::CommonExitCode::from_raw(raw_code)
     }
+
+    // ── On-chain Reputation (issue #191) ─────────────────────────────────────
+
+    /// Admin: configure the task_store contract address that is authorised to
+    /// call `update_reputation`.  Must be called once after deployment.
+    pub fn set_task_store(env: Env, task_store: Address) -> Result<(), Error> {
+        let admin = require_admin(&env)?;
+        env.storage()
+            .instance()
+            .set(&DataKey::TaskStoreContract, &task_store);
+        env.storage()
+            .instance()
+            .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+        audit::record(&env, &admin, symbol_short!("set_ts"), None, 0);
+        Ok(())
+    }
+
+    /// Read the configured task_store contract address, if any.
+    pub fn get_task_store(env: Env) -> Option<Address> {
+        env.storage()
+            .instance()
+            .get(&DataKey::TaskStoreContract)
+    }
+
+    /// Record the outcome of a task for an agent and recompute their score.
+    ///
+    /// Only the task_store contract address (set via `set_task_store`) may call
+    /// this function.  Calling with an unauthorised address will cause the
+    /// transaction to trap with an auth error.
+    ///
+    /// `task_succeeded` — whether the task completed successfully.
+    /// `payout_xlm`     — amount paid to the agent for this task, in stroops.
+    ///
+    /// Score formula: `score = (tasks_completed * 100) / max(tasks_completed + tasks_failed, 1)`
+    pub fn update_reputation(
+        env: Env,
+        agent_id: Address,
+        task_succeeded: bool,
+        payout_xlm: i128,
+    ) -> Result<(), Error> {
+        // Only the configured task_store contract may update reputation.
+        let task_store: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::TaskStoreContract)
+            .ok_or(Error::NotAdmin)?;
+        task_store.require_auth();
+
+        let key = DataKey::Reputation(agent_id.clone());
+
+        let mut record: ReputationScore = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(ReputationScore {
+                tasks_completed: 0,
+                tasks_failed: 0,
+                total_payout_xlm: 0,
+                score: 100, // new agents start with a neutral score
+            });
+
+        let old_score = record.score;
+
+        if task_succeeded {
+            record.tasks_completed = record.tasks_completed.saturating_add(1);
+            record.total_payout_xlm = record.total_payout_xlm.saturating_add(payout_xlm);
+        } else {
+            record.tasks_failed = record.tasks_failed.saturating_add(1);
+        }
+
+        // score = (tasks_completed * 100) / max(tasks_completed + tasks_failed, 1)
+        let total = record.tasks_completed.saturating_add(record.tasks_failed).max(1);
+        record.score = (record.tasks_completed as u64 * 100 / total as u64) as u32;
+
+        env.storage().persistent().set(&key, &record);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("rep_upd")),
+            ReputationUpdatedEvent {
+                agent_id,
+                old_score,
+                new_score: record.score,
+                tasks_completed: record.tasks_completed,
+                tasks_failed: record.tasks_failed,
+            },
+        );
+
+        Ok(())
+    }
+
+    /// Read the current reputation record for an agent.
+    ///
+    /// Returns a zero-counters record with `score = 100` when no reputation
+    /// data has been written yet (new agents are assumed to be trustworthy
+    /// until proven otherwise).
+    pub fn get_reputation(env: Env, agent_id: Address) -> ReputationScore {
+        let key = DataKey::Reputation(agent_id.clone());
+        let record: Option<ReputationScore> = env.storage().persistent().get(&key);
+        if record.is_some() {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        }
+        record.unwrap_or(ReputationScore {
+            tasks_completed: 0,
+            tasks_failed: 0,
+            total_payout_xlm: 0,
+            score: 100,
+        })
+    }
 }
 
 fn get_metadata_u32(
@@ -2910,3 +3028,5 @@ mod test;
 mod test_multisig;
 #[cfg(test)]
 mod property_tests;
+#[cfg(test)]
+mod reputation_tests;

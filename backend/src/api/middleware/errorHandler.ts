@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { createLogger } from "../../utils/logger";
 import { AppError } from "../../errors";
+import { CircuitOpenError } from "../../services/venice/errors";
 
 const log = createLogger();
 const isProduction = process.env.NODE_ENV === "production";
@@ -24,6 +25,16 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
+  if (err instanceof CircuitOpenError) {
+    res.setHeader("Retry-After", String(err.retryAfter));
+    res.status(503).json({
+      error: "llm_unavailable",
+      message: err.message,
+      retryAfter: err.retryAfter,
+    });
+    return;
+  }
+
   const isDevelopment = getConfig().NODE_ENV === "development";
   const traceId: string =
     err instanceof AppError

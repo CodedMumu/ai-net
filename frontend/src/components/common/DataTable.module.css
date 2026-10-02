@@ -69,6 +69,13 @@
   background: rgba(148, 163, 184, 0.14);
 }
 
+/* Visible focus indicator for keyboard row navigation (#101) */
+.row:focus-visible {
+  outline: 2px solid var(--accent, #8b5cf6);
+  outline-offset: -2px;
+  background: rgba(139, 92, 246, 0.08);
+}
+
 .selectedRow {
   background: rgba(59, 130, 246, 0.08);
 }

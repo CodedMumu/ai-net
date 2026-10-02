@@ -41,6 +41,9 @@ pub use types::*;
 #[cfg(test)]
 mod upgrade_tests;
 
+#[cfg(test)]
+pub mod pagination_tests;
+
 pub use shared_exit_codes::CommonExitCode;
 pub use upgrade::*;
 

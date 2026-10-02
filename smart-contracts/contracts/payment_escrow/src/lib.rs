@@ -1,296 +1,251 @@
 #![no_std]
 
-//! # Payment Escrow Contract
+//! # PaymentEscrow Contract
 //!
-//! Holds XLM funds in escrow until a task is completed, disputed, or expired.
+//! Manages on-chain escrow for agent task payments.
 //!
-//! ## State machine
+//! ## Lifecycle
 //!
-//! ```text
-//!  create_escrow
-//!       │
-//!       ▼
-//!    Active ──────────────────► Released  (coordinator calls release_escrow)
-//!       │
-//!       ├──────────────────────► Disputed  (coordinator or agent calls dispute_escrow)
-//!       │                           │
-//!       │                    (dispute_resolution
-//!       │                     contract invoked after
-//!       │                     48-ledger hold window)
-//!       │
-//!       └──────────────────────► Expired   (anyone calls expire_escrow after timeout_ledger)
-//! ```
+//! 1. **`lock_funds`** — The submitter (coordinator) locks a payment amount for
+//!    a specific (task_id, node_id) pair. Funds are held in escrow and marked
+//!    `Locked`.
+//! 2. **`release_funds`** — The coordinator releases funds to the agent after
+//!    successful completion. Only the coordinator may call this.
+//! 3. **`refund_funds`** — The coordinator returns the full locked amount to the
+//!    original submitter (e.g. on failure or dispute).
 //!
-//! ## Re-entrancy protection
+//! ## Timeout
 //!
-//! State is written to storage **before** any external calls or event emissions
-//! so an unexpected re-entry cannot observe stale state.
-//!
-//! ## Storage model
-//!
-//! Each escrow is stored in **Temporary** storage keyed by `DataKey::Escrow(task_id)`.
-//! Soroban auto-expires the entry when the TTL lapses, providing a natural
-//! cleanup path for tasks that are abandoned without an explicit `expire_escrow`
-//! call. The TTL is set to `timeout_ledger` at creation time.
+//! Escrow entries carry an expiry timestamp (ledger timestamp + 7 days). After
+//! expiry anyone may call `refund_funds` and the submitter is refunded
+//! automatically — the coordinator auth check is bypassed for expired escrows.
 
-mod errors;
-mod types;
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol,
+};
 
-pub use errors::Error;
-pub use types::*;
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
+/// 7 days in seconds (used for escrow timeout).
+pub const ESCROW_TIMEOUT_SECS: u64 = 7 * 24 * 60 * 60;
 
-/// Number of ledgers the escrow is held in Disputed state before the
-/// dispute_resolution contract may be invoked.  At ~5 s/ledger this is ≈4 min.
-pub const DISPUTE_HOLD_LEDGERS: u32 = 48;
-
-/// Minimum ledgers the temporary entry must still live after a TTL bump.
-pub const TTL_THRESHOLD: u32 = 50_000;
+// ── Storage keys ──────────────────────────────────────────────────────────────
 
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DataKey {
-    /// Contract administrator.
-    Admin,
-    /// Escrow record keyed by task_id.
-    Escrow(Symbol),
+    /// Per-(task_id, node_id) escrow record.
+    Escrow(Symbol, Symbol),
+    /// Singleton coordinator address (authorized to release/refund).
+    Coordinator,
 }
+
+// ── Errors ────────────────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum Error {
+    /// Escrow entry not found.
+    NotFound = 1,
+    /// An escrow for this (task_id, node_id) already exists.
+    AlreadyLocked = 2,
+    /// Caller is not the authorized coordinator.
+    Unauthorized = 3,
+    /// Lock amount must be greater than zero.
+    InvalidAmount = 4,
+    /// Attempted to release funds after the escrow timeout has passed.
+    EscrowExpired = 5,
+    /// Contract has not been initialized yet.
+    NotInitialized = 6,
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum EscrowStatus {
+    Locked,
+    Released,
+    Refunded,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct EscrowRecord {
+    /// Amount locked (in stroops).
+    pub amount: i128,
+    /// Address of the submitter (will receive refund if applicable).
+    pub submitter: Address,
+    /// Address of the agent (will receive release payment).
+    pub agent: Address,
+    /// Ledger timestamp at which this escrow was locked.
+    pub locked_at: u64,
+    /// Ledger timestamp after which this escrow auto-refunds.
+    pub expires_at: u64,
+    /// Current lifecycle status.
+    pub status: EscrowStatus,
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+
+fn emit_locked(env: &Env, task_id: &Symbol, node_id: &Symbol, amount: i128) {
+    env.events().publish(
+        (symbol_short!("escrow"), symbol_short!("locked")),
+        (task_id.clone(), node_id.clone(), amount),
+    );
+}
+
+fn emit_released(env: &Env, task_id: &Symbol, node_id: &Symbol, amount: i128) {
+    env.events().publish(
+        (symbol_short!("escrow"), symbol_short!("released")),
+        (task_id.clone(), node_id.clone(), amount),
+    );
+}
+
+fn emit_refunded(env: &Env, task_id: &Symbol, node_id: &Symbol, amount: i128) {
+    env.events().publish(
+        (symbol_short!("escrow"), symbol_short!("refunded")),
+        (task_id.clone(), node_id.clone(), amount),
+    );
+}
+
+// ── Contract ──────────────────────────────────────────────────────────────────
 
 #[contract]
 pub struct PaymentEscrowContract;
 
-fn require_admin(env: &Env) -> Result<Address, Error> {
-    let admin: Address = env
-        .storage()
-        .instance()
-        .get(&DataKey::Admin)
-        .ok_or(Error::Unauthorized)?;
-    admin.require_auth();
-    Ok(admin)
-}
-
 #[contractimpl]
 impl PaymentEscrowContract {
-    /// Initialize the contract with an admin address.
-    pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
-        if env.storage().instance().has(&DataKey::Admin) {
-            return Err(Error::AlreadyInitialized);
+    /// Initialize the contract with a coordinator address.
+    /// Must be called exactly once before any other function.
+    pub fn initialize(env: Env, coordinator: Address) -> Result<(), Error> {
+        if env.storage().instance().has(&DataKey::Coordinator) {
+            return Err(Error::AlreadyLocked); // reuse AlreadyLocked as "already initialized"
         }
-        admin.require_auth();
-        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage()
+            .instance()
+            .set(&DataKey::Coordinator, &coordinator);
         Ok(())
     }
 
-    /// Read the current admin address.
-    pub fn admin(env: Env) -> Option<Address> {
-        env.storage().instance().get(&DataKey::Admin)
-    }
-
-    /// Lock funds in escrow for a task.
+    /// Lock `amount` stroops for a given (task_id, node_id) pair.
     ///
-    /// - `coordinator`    — the address paying into escrow; must authorise.
-    /// - `task_id`        — unique identifier for the task (matches task_store).
-    /// - `agent`          — the agent that will perform the task.
-    /// - `amount`         — XLM amount in stroops to hold.
-    /// - `timeout_ledger` — ledger sequence at which the escrow auto-expires.
-    ///
-    /// The record is stored in Temporary storage; Soroban automatically removes
-    /// it when the TTL lapses.
-    pub fn create_escrow(
+    /// Only the coordinator may call this. The escrow is valid for
+    /// `ESCROW_TIMEOUT_SECS` from the time of locking.
+    pub fn lock_funds(
         env: Env,
-        coordinator: Address,
         task_id: Symbol,
+        node_id: Symbol,
+        submitter: Address,
         agent: Address,
         amount: i128,
-        timeout_ledger: u32,
     ) -> Result<(), Error> {
+        let coordinator = Self::read_coordinator(&env)?;
         coordinator.require_auth();
 
         if amount <= 0 {
             return Err(Error::InvalidAmount);
         }
 
-        let current_ledger = env.ledger().sequence();
-        if timeout_ledger <= current_ledger {
-            return Err(Error::InvalidTimeout);
+        let key = DataKey::Escrow(task_id.clone(), node_id.clone());
+        if env.storage().persistent().has(&key) {
+            return Err(Error::AlreadyLocked);
         }
 
-        let key = DataKey::Escrow(task_id.clone());
-        if env.storage().temporary().has(&key) {
-            return Err(Error::AlreadyExists);
-        }
-
-        // Compute TTL: how many ledgers from now until timeout.
-        let ttl = timeout_ledger.saturating_sub(current_ledger);
-
+        let now = env.ledger().timestamp();
         let record = EscrowRecord {
-            task_id: task_id.clone(),
-            coordinator: coordinator.clone(),
-            agent: agent.clone(),
             amount,
-            timeout_ledger,
-            state: EscrowState::Active,
-            dispute_hold_until: None,
+            submitter,
+            agent,
+            locked_at: now,
+            expires_at: now + ESCROW_TIMEOUT_SECS,
+            status: EscrowStatus::Locked,
         };
 
-        // Write state before emitting events (re-entrancy protection).
-        env.storage().temporary().set(&key, &record);
-        env.storage()
-            .temporary()
-            .extend_ttl(&key, ttl.saturating_sub(1), ttl);
-
-        env.events().publish(
-            (symbol_short!("escrow"), symbol_short!("created")),
-            EscrowCreatedEvent {
-                task_id,
-                coordinator,
-                agent,
-                amount,
-                timeout_ledger,
-            },
-        );
-
+        env.storage().persistent().set(&key, &record);
+        emit_locked(&env, &task_id, &node_id, amount);
         Ok(())
     }
 
-    /// Release escrowed funds to the agent after task completion.
+    /// Release the locked funds to the agent.
     ///
-    /// Only the coordinator may call this.  The escrow must be in `Active` state.
-    pub fn release_escrow(env: Env, coordinator: Address, task_id: Symbol) -> Result<(), Error> {
+    /// Only the coordinator may call this. Fails if the escrow has expired.
+    pub fn release_funds(
+        env: Env,
+        task_id: Symbol,
+        node_id: Symbol,
+    ) -> Result<EscrowRecord, Error> {
+        let coordinator = Self::read_coordinator(&env)?;
         coordinator.require_auth();
 
-        let key = DataKey::Escrow(task_id.clone());
-        let mut record: EscrowRecord = env
-            .storage()
-            .temporary()
-            .get(&key)
-            .ok_or(Error::NotFound)?;
+        let key = DataKey::Escrow(task_id.clone(), node_id.clone());
+        let mut record: EscrowRecord =
+            env.storage().persistent().get(&key).ok_or(Error::NotFound)?;
 
-        if record.coordinator != coordinator {
-            return Err(Error::Unauthorized);
+        // Releasing after timeout is not allowed — caller should call
+        // refund_funds instead once the escrow has expired.
+        let now = env.ledger().timestamp();
+        if now >= record.expires_at {
+            return Err(Error::EscrowExpired);
         }
 
-        match record.state {
-            EscrowState::Active => {}
-            EscrowState::Released => return Err(Error::AlreadyReleased),
-            EscrowState::Disputed => return Err(Error::EscrowDisputed),
-            EscrowState::Expired => return Err(Error::EscrowExpired),
-        }
-
-        // Update state before event (re-entrancy protection).
-        record.state = EscrowState::Released;
-        env.storage().temporary().set(&key, &record);
-
-        env.events().publish(
-            (symbol_short!("escrow"), symbol_short!("released")),
-            EscrowReleasedEvent {
-                task_id,
-                agent: record.agent,
-                amount: record.amount,
-            },
-        );
-
-        Ok(())
+        record.status = EscrowStatus::Released;
+        env.storage().persistent().set(&key, &record);
+        emit_released(&env, &task_id, &node_id, record.amount);
+        Ok(record)
     }
 
-    /// Raise a dispute on an escrow.
+    /// Refund the locked funds back to the submitter.
     ///
-    /// Either the coordinator or the agent may call this.  Triggers a
-    /// 48-ledger hold window after which the dispute_resolution contract
-    /// should be invoked externally.
-    pub fn dispute_escrow(env: Env, caller: Address, task_id: Symbol) -> Result<(), Error> {
-        caller.require_auth();
+    /// The coordinator may call this at any time. After the timeout,
+    /// *anyone* may call this (auto-refund path).
+    pub fn refund_funds(
+        env: Env,
+        task_id: Symbol,
+        node_id: Symbol,
+    ) -> Result<EscrowRecord, Error> {
+        let key = DataKey::Escrow(task_id.clone(), node_id.clone());
+        let mut record: EscrowRecord =
+            env.storage().persistent().get(&key).ok_or(Error::NotFound)?;
 
-        let key = DataKey::Escrow(task_id.clone());
-        let mut record: EscrowRecord = env
-            .storage()
-            .temporary()
-            .get(&key)
-            .ok_or(Error::NotFound)?;
+        let now = env.ledger().timestamp();
+        let is_expired = now >= record.expires_at;
 
-        // Only the coordinator or the agent may dispute.
-        if caller != record.coordinator && caller != record.agent {
-            return Err(Error::Unauthorized);
+        if !is_expired {
+            // Before timeout: only the coordinator may refund.
+            let coordinator = Self::read_coordinator(&env)?;
+            coordinator.require_auth();
         }
+        // After timeout: no auth required — anyone can trigger auto-refund.
 
-        match record.state {
-            EscrowState::Active => {}
-            EscrowState::Released => return Err(Error::AlreadyReleased),
-            EscrowState::Disputed => return Err(Error::AlreadyDisputed),
-            EscrowState::Expired => return Err(Error::EscrowExpired),
-        }
-
-        let hold_until = env.ledger().sequence() + DISPUTE_HOLD_LEDGERS;
-
-        // Update state before event (re-entrancy protection).
-        record.state = EscrowState::Disputed;
-        record.dispute_hold_until = Some(hold_until);
-        env.storage().temporary().set(&key, &record);
-
-        env.events().publish(
-            (symbol_short!("escrow"), symbol_short!("disputed")),
-            EscrowDisputedEvent {
-                task_id,
-                caller,
-                dispute_hold_until: hold_until,
-            },
-        );
-
-        Ok(())
+        record.status = EscrowStatus::Refunded;
+        env.storage().persistent().set(&key, &record);
+        emit_refunded(&env, &task_id, &node_id, record.amount);
+        Ok(record)
     }
 
-    /// Expire an escrow and return funds to the coordinator.
-    ///
-    /// Permissionless: anyone may call this once `timeout_ledger` has been
-    /// reached.  The escrow must still be in `Active` state (disputed escrows
-    /// are handled by the dispute_resolution contract instead).
-    pub fn expire_escrow(env: Env, task_id: Symbol) -> Result<(), Error> {
-        let key = DataKey::Escrow(task_id.clone());
-        let mut record: EscrowRecord = env
-            .storage()
-            .temporary()
-            .get(&key)
-            .ok_or(Error::NotFound)?;
-
-        let current_ledger = env.ledger().sequence();
-
-        if current_ledger < record.timeout_ledger {
-            return Err(Error::NotYetExpired);
-        }
-
-        match record.state {
-            EscrowState::Active => {}
-            EscrowState::Released => return Err(Error::AlreadyReleased),
-            EscrowState::Disputed => return Err(Error::EscrowDisputed),
-            EscrowState::Expired => return Err(Error::AlreadyExpired),
-        }
-
-        // Update state before event (re-entrancy protection).
-        record.state = EscrowState::Expired;
-        env.storage().temporary().set(&key, &record);
-
-        env.events().publish(
-            (symbol_short!("escrow"), symbol_short!("expired")),
-            EscrowExpiredEvent {
-                task_id,
-                coordinator: record.coordinator,
-                amount: record.amount,
-            },
-        );
-
-        Ok(())
+    /// Read the current escrow record without mutating it.
+    pub fn get_escrow(
+        env: Env,
+        task_id: Symbol,
+        node_id: Symbol,
+    ) -> Result<EscrowRecord, Error> {
+        let key = DataKey::Escrow(task_id, node_id);
+        env.storage().persistent().get(&key).ok_or(Error::NotFound)
     }
 
-    /// Read the escrow record for a task without modifying it.
-    pub fn get_escrow(env: Env, task_id: Symbol) -> Option<EscrowRecord> {
+    // ── Internals ─────────────────────────────────────────────────────────────
+
+    fn read_coordinator(env: &Env) -> Result<Address, Error> {
         env.storage()
-            .temporary()
-            .get(&DataKey::Escrow(task_id))
+            .instance()
+            .get(&DataKey::Coordinator)
+            .ok_or(Error::NotInitialized)
     }
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod test;

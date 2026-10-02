@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { getAuthService, AuthService } from "../../services/auth";
-import { sessionAuthMiddleware, optionalAuthMiddleware } from "../middleware/auth";
+import { authMiddleware as sessionAuthMiddleware, optionalAuthMiddleware } from "../middleware/auth";
 import { ValidationError } from "../../errors/ValidationError";
 import { emptyBodySchema, stellarPublicKeySchema } from "../../schemas/common";
 import { validate } from "../middleware/validate";

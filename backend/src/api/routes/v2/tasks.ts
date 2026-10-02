@@ -9,8 +9,10 @@ import { createTask, getTask } from "../../../coordinator/taskStore";
 import { createLogger } from "../../../utils/logger";
 import { validate } from "../../middleware/validate";
 import { rateLimitMiddleware } from "../../middleware/rateLimit";
+import { idempotencyMiddleware } from "../../middleware/idempotency";
 import { currentTraceId } from "../../../services/traceContext";
 import { getConfig } from "../../../config";
+import { TaskListSchema } from "../../schemas/task.schema";
 
 import { getGlobalJobQueue, type JobQueue, type JobPriority } from "../../../queue";
 import { createCancelTaskRouter } from "../cancel";

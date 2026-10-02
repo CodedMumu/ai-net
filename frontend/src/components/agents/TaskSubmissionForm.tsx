@@ -46,10 +46,17 @@ const makeTaskSchema = (t: TFunction) =>
       .string()
       .trim()
       .min(1, t('validation.promptRequired'))
-      .max(DESCRIPTION_MAX_CHARS, t('validation.promptTooLong')),
+      .min(20, t('validation.promptTooShort', {
+        defaultValue: 'Task description must be at least 20 characters — describe your goal in detail.',
+      }))
+      .max(DESCRIPTION_MAX_CHARS, t('validation.promptTooLong', {
+        defaultValue: 'Task description must be 2000 characters or fewer — shorten your description.',
+      })),
     agentPreferences: z
       .array(z.enum(AGENT_PREFERENCE_VALUES))
-      .min(1, t('validation.agentRequired')),
+      .min(1, t('validation.agentRequired', {
+        defaultValue: 'Select at least one specialist agent to handle your task.',
+      })),
   });
 
 type TaskFormValues = z.infer<ReturnType<typeof makeTaskSchema>>;

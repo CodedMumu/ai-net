@@ -459,6 +459,12 @@ export function formatPrometheusMetrics(params: {
   lines.push("# TYPE ainet_agents_total gauge");
   lines.push(`ainet_agents_total ${params.agents.total}`);
 
+  lines.push("");
+  lines.push("# HELP ai_net_active_agents Number of registered agents by status");
+  lines.push("# TYPE ai_net_active_agents gauge");
+  lines.push(`ai_net_active_agents{status="online"} ${params.agents.online}`);
+  lines.push(`ai_net_active_agents{status="offline"} ${params.agents.offline}`);
+
   // 4. ainet_payments_total{status,currency} — counter of payments by status
   lines.push("");
   lines.push("# HELP ainet_payments_total Counter of payments by status");

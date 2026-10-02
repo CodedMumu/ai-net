@@ -295,7 +295,7 @@ function makeHttpDispatch(registry?: AgentRegistry): DispatchFn {
       );
     }
 
-    const agents = await registry.getAgents(node.type);
+    const agents = (await registry.getAgents(node.type)).filter((agent) => agent.status === "online");
     if (!agents || agents.length === 0) {
       throw new AppError(`No agent registered for type: ${node.type}`, 500, "AGENT_NOT_FOUND");
     }

@@ -1,6 +1,9 @@
 import { LRUCache } from "lru-cache";
 import type { Request, Response, NextFunction } from "express";
 import { getConfig } from "../../config";
+import { createLogger } from "../../utils/logger";
+
+const logger = createLogger({ component: "rate-limit" });
 
 export interface RateLimitOptions {
   /** Rolling window in milliseconds. Default: 60 000 (1 minute). */
@@ -217,7 +220,7 @@ export function createMiddleware(rule: RateLimitRule, keyPrefix: string = "globa
       next();
     } catch (err) {
       // Fail open on rate limiter cache errors to not break the API
-      console.error("[rateLimit] Error executing rate limit:", err);
+      logger.error({ err }, "rate limit execution failed; allowing request");
       next();
     }
   };

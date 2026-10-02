@@ -1607,4 +1607,153 @@ mod test {
             Some(20_000_000i128)
         );
     }
+
+    // ── Coverage-gap tests added for Issue #201 ───────────────────────────────
+
+    #[test]
+    fn pending_to_running_is_valid_transition() {
+        // Invariant: the Pending → Running transition must succeed when the
+        // caller is an assigned agent.
+        let f = fixture();
+        store(&f, 1);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Running);
+        let status = f.client.get_task_status(&f.task_id);
+        assert_eq!(status, TaskStatus::Running);
+    }
+
+    #[test]
+    fn running_to_completed_is_valid_transition() {
+        // Invariant: Running → Completed must succeed and emit a finalized event.
+        let f = fixture();
+        store(&f, 1);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Running);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Completed);
+        let status = f.client.get_task_status(&f.task_id);
+        assert_eq!(status, TaskStatus::Completed);
+    }
+
+    #[test]
+    fn running_to_failed_is_valid_transition() {
+        // Invariant: Running → Failed is a valid terminal transition.
+        let f = fixture();
+        store(&f, 1);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Running);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Failed);
+        assert_eq!(f.client.get_task_status(&f.task_id), TaskStatus::Failed);
+    }
+
+    #[test]
+    fn pending_to_failed_is_valid_transition() {
+        // Invariant: Pending → Failed must be permitted (e.g. immediate failure
+        // without a running phase, such as a DAG validation error).
+        let f = fixture();
+        store(&f, 1);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Failed);
+        assert_eq!(f.client.get_task_status(&f.task_id), TaskStatus::Failed);
+    }
+
+    #[test]
+    fn completed_to_any_is_invalid_transition() {
+        // Invariant: no further transitions are valid from the terminal
+        // Completed state. Attempting one must return InvalidStatusTransition.
+        let f = fixture();
+        store(&f, 1);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Running);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Completed);
+
+        let err = f.client.try_update_task_status(&f.task_id, &f.agent, &TaskStatus::Failed);
+        assert_eq!(err, Err(Ok(Error::InvalidStatusTransition)));
+    }
+
+    #[test]
+    fn failed_to_any_is_invalid_transition() {
+        // Invariant: no transitions out of the terminal Failed state.
+        let f = fixture();
+        store(&f, 1);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Failed);
+
+        let err = f
+            .client
+            .try_update_task_status(&f.task_id, &f.agent, &TaskStatus::Running);
+        assert_eq!(err, Err(Ok(Error::InvalidStatusTransition)));
+    }
+
+    #[test]
+    fn running_to_pending_is_invalid_transition() {
+        // Invariant: backward transitions (Running → Pending) must be rejected.
+        let f = fixture();
+        store(&f, 1);
+        f.client.update_task_status(&f.task_id, &f.agent, &TaskStatus::Running);
+
+        let err = f
+            .client
+            .try_update_task_status(&f.task_id, &f.agent, &TaskStatus::Pending);
+        assert_eq!(err, Err(Ok(Error::InvalidStatusTransition)));
+    }
+
+    #[test]
+    fn get_nonexistent_task_returns_not_found() {
+        // Invariant: querying a task id that was never stored must return NotFound.
+        let f = fixture();
+        let missing = BytesN::from_array(&f.env, &[0xde; 32]);
+        let err = f.client.try_get_task_metadata(&missing);
+        assert_eq!(err, Err(Ok(Error::NotFound)));
+    }
+
+    #[test]
+    fn duplicate_task_creation_returns_already_exists() {
+        // Invariant: submitting a task with a duplicate task_id must return
+        // AlreadyExists so task creation is idempotent-safe.
+        let f = fixture();
+        store(&f, 1);
+        let agents = Vec::from_array(&f.env, [f.agent.clone()]);
+        let dag = Bytes::from_slice(&f.env, &[0x78, 0x9c, 0x03, 0x00]);
+        let err = f.client.try_store_task_metadata(
+            &f.submitter,
+            &f.task_id,
+            &f.prompt_hash,
+            &agents,
+            &dag,
+            &1u32,
+            &None,
+        );
+        assert_eq!(err, Err(Ok(Error::AlreadyExists)));
+    }
+
+    #[test]
+    fn duplicate_agent_in_assigned_list_rejected() {
+        // Invariant: assigned_agents must be a set — duplicates are rejected with
+        // DuplicateAgent so the update loop cannot be triggered twice per agent.
+        let f = fixture();
+        let agents = Vec::from_array(&f.env, [f.agent.clone(), f.agent.clone()]);
+        let dag = Bytes::from_slice(&f.env, &[0x78, 0x9c, 0x03, 0x00]);
+        let err = f.client.try_store_task_metadata(
+            &f.submitter,
+            &f.task_id,
+            &f.prompt_hash,
+            &agents,
+            &dag,
+            &1u32,
+            &None,
+        );
+        assert_eq!(err, Err(Ok(Error::DuplicateAgent)));
+    }
+
+    #[test]
+    fn no_assigned_agents_rejected() {
+        // Invariant: a task with an empty agent list must be rejected.
+        let f = fixture();
+        let agents: Vec<Address> = Vec::new(&f.env);
+        let dag = Bytes::from_slice(&f.env, &[0x78, 0x9c, 0x03, 0x00]);
+        let err = f.client.try_store_task_metadata(
+            &f.submitter,
+            &f.task_id,
+            &f.prompt_hash,
+            &agents,
+            &dag,
+            &1u32,
+            &None,
+        );
+        assert_eq!(err, Err(Ok(Error::NoAssignedAgents)));
+    }
 }

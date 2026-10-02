@@ -41,9 +41,19 @@ jobs:
               - 'tests/e2e/**'
               - 'smart-contracts/**'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/release-please.yml'
+              - '.release-please-*.json'
+              - '.versionrc.json'
+              - 'package.json'
+              - 'package-lock.json'
             frontend:
               - 'frontend/**'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/release-please.yml'
+              - '.release-please-*.json'
+              - '.versionrc.json'
+              - 'package.json'
+              - 'package-lock.json'
 
   backend:
     name: backend
@@ -74,6 +84,15 @@ jobs:
 
       - name: Unit tests & coverage
         run: npm run test:coverage
+
+      - name: Upload backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Performance latency budgets
         run: npm run test:performance
@@ -108,6 +127,15 @@ jobs:
       - name: Unit tests & coverage (vitest)
         run: npm run test:coverage
 
+      - name: Upload frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          if-no-files-found: warn
+          retention-days: 14
+
   frontend-visual:
     name: frontend-visual-regression
     # Deliberately does NOT `needs: [frontend]`. This suite renders four
@@ -115,10 +143,6 @@ jobs:
     # server), not the full production bundle `frontend`'s `npm run build`
     # type-checks — so it doesn't need that job to pass, and shouldn't be
     # blocked by an unrelated tsc error in a page these tests don't visit.
-    # Screenshot comparisons are inherently more environment-sensitive than
-    # unit/type checks; don't block merges on this suite yet. Failures are
-    # still visible on the PR checks list and via the uploaded report.
-    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Pinned to the @playwright/test version resolved in package-lock.json.
@@ -129,6 +153,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.61.0-jammy
     env:
       TZ: UTC
+      PERCY_TOKEN: ${{ secrets.PERCY_TOKEN }}
     defaults:
       run:
         working-directory: frontend

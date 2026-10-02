@@ -42,6 +42,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
   const router = Router();
   const healthTimeoutMs = options.healthTimeoutMs ?? DEFAULT_HEALTH_TIMEOUT_MS;
   const getDb = () => options.db ?? createAgentDb(getAgentDb());
+  const agentNotFound = (id: string) => new AppError(`Agent '${id}' not found`, 404, "AGENT_NOT_FOUND");
 
   /**
    * @openapi
@@ -162,8 +163,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
     try {
       const agent = getDb().findById(req.params.id);
       if (!agent) {
-        res.status(404).json({ error: "Agent not found" });
-        return;
+        return next(agentNotFound(req.params.id));
       }
       res.json(agent);
     } catch (error) {
@@ -196,8 +196,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
     try {
       const agent = getDb().findById(req.params.id);
       if (!agent) {
-        res.status(404).json({ error: "Agent not found" });
-        return;
+        return next(agentNotFound(req.params.id));
       }
 
       const startedAt = Date.now();
@@ -352,8 +351,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
       const db = getDb();
       const agent = db.findById(req.params.id);
       if (!agent) {
-        res.status(404).json({ error: "Agent not found" });
-        return;
+        return next(agentNotFound(req.params.id));
       }
 
       db.updateLastSeen(req.params.id);
@@ -432,8 +430,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
       const db = getDb();
       const agent = db.findById(req.params.id);
       if (!agent) {
-        res.status(404).json({ error: "Agent not found" });
-        return;
+        return next(agentNotFound(req.params.id));
       }
 
       const signature = req.headers["x-signature"] as string | undefined;

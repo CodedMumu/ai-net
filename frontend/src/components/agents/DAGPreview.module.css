@@ -8,6 +8,9 @@
   overflow: hidden;
   border: 1px solid #1e293b;
   background: #0a0e14;
+  /* Tablet: ensure the DAG canvas doesn't overflow the page width */
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 @media (min-width: 768px) {
@@ -19,6 +22,13 @@
 @media (min-width: 1024px) {
   .container {
     min-height: 380px;
+  }
+}
+
+/* Tablet: scale down min-height slightly to give room for other content */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .container {
+    min-height: 280px;
   }
 }
 

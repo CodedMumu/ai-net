@@ -29,11 +29,11 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Detect changed paths
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             backend:
@@ -64,10 +64,10 @@ jobs:
         working-directory: backend
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -87,7 +87,7 @@ jobs:
 
       - name: Upload backend coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: backend/coverage/
@@ -106,10 +106,10 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -129,7 +129,7 @@ jobs:
 
       - name: Upload frontend coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
           path: frontend/coverage/
@@ -159,7 +159,7 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Install dependencies
         run: npm ci
@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload visual regression report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-visual-report
           path: frontend/playwright-report-visual/
@@ -207,10 +207,10 @@ jobs:
         working-directory: smart-contracts
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -281,10 +281,10 @@ jobs:
         working-directory: backend
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -294,7 +294,7 @@ jobs:
         run: npm ci
 
       - name: Run backend smoke E2E (with auto-retry)
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 12
           max_attempts: 3
@@ -308,7 +308,7 @@ jobs:
 
       - name: Upload backend smoke results (flake tracking)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-backend-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -332,10 +332,10 @@ jobs:
         working-directory: backend
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -345,7 +345,7 @@ jobs:
         run: npm ci
 
       - name: Run backend heavy E2E (with auto-retry)
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 18
           max_attempts: 3
@@ -359,7 +359,7 @@ jobs:
 
       - name: Upload backend heavy results (flake tracking)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-backend-heavy-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -383,10 +383,10 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -399,7 +399,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run frontend smoke E2E (with auto-retry)
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 15
           max_attempts: 3
@@ -410,7 +410,7 @@ jobs:
 
       - name: Upload frontend smoke Playwright report (flake tracking)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-frontend-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -434,10 +434,10 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -450,7 +450,7 @@ jobs:
         run: npx playwright install --with-deps chromium firefox
 
       - name: Run frontend heavy E2E (with auto-retry)
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 15
           max_attempts: 3
@@ -461,7 +461,7 @@ jobs:
 
       - name: Upload frontend heavy Playwright report (flake tracking)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-frontend-heavy-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -528,10 +528,10 @@ jobs:
         working-directory: smart-contracts
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm

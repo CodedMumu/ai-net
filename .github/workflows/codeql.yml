@@ -54,13 +54,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # Initialise the CodeQL toolchain and configure the analysis database.
       # auto-build: false — we run explicit build commands below so CodeQL can
       # trace TypeScript type-checking and catch type-flow vulnerabilities.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           # Use the default security-and-quality query suite, which covers
@@ -86,7 +86,7 @@ jobs:
 
       # Set up Node.js so that npm install / tsc commands work correctly.
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -114,7 +114,7 @@ jobs:
       # Run the analysis and upload results to the GitHub Security tab.
       # SARIF output is automatically associated with the current branch/PR.
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
           # Upload findings as SARIF to the Security tab. Results are visible

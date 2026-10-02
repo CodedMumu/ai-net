@@ -10,6 +10,8 @@
     "test": "jest --runInBand --forceExit",
     "test:coverage": "jest --coverage --runInBand --forceExit",
     "test:e2e": "jest --config ../tests/e2e/jest.config.js --runInBand --forceExit",
+    "test:performance": "ts-node tests/performance/run.ts",
+    "docs:generate": "node scripts/generate-openapi.js",
     "db:migrate": "ts-node src/db/cli.ts migrate",
     "db:rollback": "ts-node src/db/cli.ts rollback",
     "db:seed": "ts-node src/db/cli.ts seed"
@@ -44,6 +46,7 @@
     "@types/ws": "^8.18.1",
     "eslint": "8.57.0",
     "jest": "29.7.0",
+    "jest-openapi": "^0.14.2",
     "prettier": "^3.2.5",
     "supertest": "^7.0.0",
     "ts-jest": "29.1.4",

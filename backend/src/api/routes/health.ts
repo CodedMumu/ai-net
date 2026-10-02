@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, RequestHandler } from "express";
 import { getConfig } from "../../config";
 import { adminAuthMiddleware } from "../middleware/auth";
 import { metricsService } from "../../services/metrics";
@@ -7,17 +7,24 @@ import { tracingService } from "../../services/tracing";
 const router = Router();
 const startTime = Date.now();
 
-function cachedRoute(group: "health"): RequestHandler {
-  let middleware: RequestHandler | null = null;
-  return (req, res, next) => {
-    if (!middleware) {
-      middleware = cacheMiddleware({ ttl: ttlForRoute(group) });
-    }
-    return middleware(req, res, next);
-  };
-}
-
-router.get("/", cachedRoute("health"), (_req: Request, res: Response) => {
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     summary: Basic liveness check
+ *     operationId: getHealth
+ *     description: Returns process uptime, version, and Stellar network name. No external dependency checks.
+ *     tags: [Health]
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Service is up
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/HealthStatus'
+ */
+const livenessHandler: RequestHandler = (_req: Request, res: Response) => {
   const config = getConfig();
   res.json({
     status: "ok",
@@ -25,7 +32,7 @@ router.get("/", cachedRoute("health"), (_req: Request, res: Response) => {
     version: config.NPM_PACKAGE_VERSION,
     stellarNetwork: config.STELLAR_NETWORK,
   });
-}
+};
 
 router.get("/", livenessHandler);
 
@@ -41,10 +48,14 @@ router.get("/", livenessHandler);
  *     responses:
  *       200:
  *         description: Service is up
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/HealthStatus'
  */
 router.get("/live", livenessHandler);
 
-router.get("/deep", cachedRoute("health"), async (_req: Request, res: Response) => {
+router.get("/deep", async (_req: Request, res: Response) => {
   const config = getConfig();
   const [veniceStatus, horizonStatus] = await Promise.all([
     checkVenice(config.VENICE_API_KEY),

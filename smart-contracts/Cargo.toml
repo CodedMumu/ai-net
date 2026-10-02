@@ -5,6 +5,7 @@ members = [
     "contracts/error-registry",
     "contracts/agent_bidding",
     "contracts/agent_governance",
+    "contracts/multisig_governance",
     "contracts/upgrade-manager",
     "contracts/task_store",
 ]

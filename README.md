@@ -116,6 +116,7 @@ ai-net/
 
 ## Documentation & Integration Guides
 
+- [SDK Quickstart](docs/SDK_QUICKSTART.md) — Go from zero to a registered, heartbeating agent in under 30 minutes.
 - [AI-Agent Integration Guide](docs/ai-agent-integration-guide.md) — Step-by-step guide for registering third-party agents, staking bonds, heartbeats, task execution, and dispute resolution.
 - [Smart Contract Deployment & Upgrades](smart-contracts/docs/DEPLOYMENT_GUIDE.md) — Deployment and upgrade workflows.
 - [Storage Migration Guide](smart-contracts/docs/STORAGE_MIGRATION.md) — Storage migration guidelines.
@@ -257,6 +258,7 @@ npm run test:e2e
 
 ## Documentation
 
+- [SDK Quickstart](docs/SDK_QUICKSTART.md): Go from zero to a registered, heartbeating, task-completing agent in under 30 minutes.
 - [Developer Setup Guide](docs/DEVELOPER_SETUP.md): Fast onboarding from clean clone to running local node, testnet deployments, Freighter wallet setup, and testing.
 - [Architecture Specification](docs/architecture/index.md): System context, component architecture, Mermaid sequence diagrams, and security model.
 - [REST API Reference](docs/API_REFERENCE.md): Comprehensive per-endpoint documentation, error codes taxonomy, authentication headers, and runnable curl examples.

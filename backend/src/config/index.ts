@@ -45,6 +45,30 @@ const envSchema = z.object({
   REGISTER_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
   DAILY_TASK_LIMIT_PER_WALLET: z.coerce.number().int().min(0).default(100),
 
+  // ── Per-route-group rate limit overrides ─────────────────────────────────
+  /** Public routes window in milliseconds (default: 60 000). */
+  RATE_LIMIT_PUBLIC_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  /** Public routes max requests per window per IP (default: 100). */
+  RATE_LIMIT_PUBLIC_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
+  /** Authenticated routes window in milliseconds (default: 60 000). */
+  RATE_LIMIT_AUTHED_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  /** Authenticated routes max requests per window per wallet (default: 30). */
+  RATE_LIMIT_AUTHED_MAX_REQUESTS: z.coerce.number().int().positive().default(30),
+  /** Admin routes window in milliseconds (default: 60 000). */
+  RATE_LIMIT_ADMIN_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  /** Admin routes max requests per window per IP (default: 20). */
+  RATE_LIMIT_ADMIN_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
+  /**
+   * Venice AI proxy routes window in milliseconds (default: 60 000).
+   * Controls how long the sliding window is for Venice-triggering endpoints.
+   */
+  RATE_LIMIT_VENICE_PROXY_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  /**
+   * Venice AI proxy routes max requests per window per wallet (default: 10).
+   * Keep low to respect upstream Venice AI API quotas.
+   */
+  RATE_LIMIT_VENICE_PROXY_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
+
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().positive().default(300_000),
   HEARTBEAT_STALE_THRESHOLD_MINUTES: z.coerce.number().int().positive().default(5),
   AGENT_OFFLINE_DELETE_HOURS: z.coerce.number().int().positive().default(24),

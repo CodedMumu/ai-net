@@ -9,6 +9,7 @@
 [![Stellar](https://img.shields.io/badge/Built%20on-Stellar-blue)](https://stellar.org)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Good First Issues](https://img.shields.io/github/issues/Epta-Node/ai-net/good%20first%20issue)](https://github.com/Epta-Node/ai-net/issues?q=label%3A%22good+first+issue%22)
+[![Status](https://img.shields.io/badge/status-page-brightgreen)](https://status.ai-net.app)
 
 ---
 
@@ -116,6 +117,7 @@ ai-net/
 
 ## Documentation & Integration Guides
 
+- [SDK Quickstart](docs/SDK_QUICKSTART.md) — Go from zero to a registered, heartbeating agent in under 30 minutes.
 - [AI-Agent Integration Guide](docs/ai-agent-integration-guide.md) — Step-by-step guide for registering third-party agents, staking bonds, heartbeats, task execution, and dispute resolution.
 - [Smart Contract Deployment & Upgrades](smart-contracts/docs/DEPLOYMENT_GUIDE.md) — Deployment and upgrade workflows.
 - [Storage Migration Guide](smart-contracts/docs/STORAGE_MIGRATION.md) — Storage migration guidelines.
@@ -257,6 +259,7 @@ npm run test:e2e
 
 ## Documentation
 
+- [SDK Quickstart](docs/SDK_QUICKSTART.md): Go from zero to a registered, heartbeating, task-completing agent in under 30 minutes.
 - [Developer Setup Guide](docs/DEVELOPER_SETUP.md): Fast onboarding from clean clone to running local node, testnet deployments, Freighter wallet setup, and testing.
 - [Architecture Specification](docs/architecture/index.md): System context, component architecture, Mermaid sequence diagrams, and security model.
 - [REST API Reference](docs/API_REFERENCE.md): Comprehensive per-endpoint documentation, error codes taxonomy, authentication headers, and runnable curl examples.
@@ -267,6 +270,8 @@ npm run test:e2e
 - [Release Engineering Guide](docs/RELEASE_ENGINEERING.md): Tagging, changelog generation, artifact signing, and release checklists.
 - [Frontend Architecture & Conventions](docs/FRONTEND_ARCHITECTURE.md): Folder structure, naming rules, state management, and component patterns.
 - [Frontend Visual Regression Testing](docs/visual-regression-testing.md): Screenshot coverage per UI surface, diff threshold, and the baseline update flow.
+- [Database Backup & Disaster Recovery](docs/DATABASE_BACKUP_DR.md): Automated daily backups to S3 with AES-256 encryption, 30-day retention, restore procedures, and quarterly DR drill guide.
+- [Uptime Monitoring & Status Page](docs/UPTIME_MONITORING.md): External monitoring setup for all production endpoints, alerting via email + Slack, and incident response procedure. Public status page: [https://status.ai-net.app](https://status.ai-net.app).
 
 ---
 

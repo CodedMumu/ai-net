@@ -240,6 +240,28 @@ npm run dev
 npm test
 ```
 
+### Run backend load tests
+
+The scheduled k6 suite covers 100 concurrent agent-list readers for 60 seconds,
+20 concurrent task submissions, 50 authenticated WebSocket subscribers, and a
+200 requests/second task-polling simulation. It checks the read p95, submission
+p99, and error-rate SLOs. k6 prints p50/p95/p99 summaries and the scheduled CI
+run uploads machine-readable JSON summaries as an artifact.
+
+Install k6, then start the local backend stack and run any scenario:
+
+```bash
+docker compose up -d stellar-standalone backend
+k6 run tests/load/scenarios/get-agents.js
+k6 run tests/load/scenarios/submit-tasks.js
+k6 run tests/load/scenarios/websocket-subscribers.js
+k6 run tests/load/scenarios/poll-task.js
+```
+
+Set `BASE_URL` to target a non-local backend. The WebSocket and polling scripts
+create a seed task through the API. Results from the scheduled run are available
+in the `backend-load-reports` workflow artifact.
+
 ### Run smart-contract E2E tests
 
 The full market report pipeline test runs against Stellar testnet and is expected

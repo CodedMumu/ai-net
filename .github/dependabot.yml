@@ -1,0 +1,146 @@
+# Dependabot configuration for ai-net
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Ecosystems covered:
+#   - npm (backend)
+#   - npm (frontend)
+#   - npm (smart-contracts TypeScript SDK)
+#   - cargo (smart-contracts Rust workspace)
+#   - github-actions (workflow dependencies)
+#
+# Schedule strategy:
+#   - Security updates: immediate (Dependabot raises these automatically on
+#     any schedule; the "open-pull-requests-limit: 10" keeps the queue sane).
+#   - Non-security updates: weekly on Mondays at 09:00 UTC to batch them and
+#     avoid constant churn.
+
+version: 2
+
+updates:
+  # ── Backend Node.js dependencies ────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    # Group all non-security patch/minor updates into a single weekly PR to
+    # reduce noise. Security updates always get their own PRs regardless.
+    groups:
+      backend-non-security:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    reviewers: []
+    assignees: []
+
+  # ── Frontend Node.js dependencies ───────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    groups:
+      frontend-non-security:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    reviewers: []
+    assignees: []
+
+  # ── Smart-contracts TypeScript SDK dependencies ─────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/smart-contracts"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    groups:
+      smart-contracts-ts-non-security:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "smart-contracts"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    reviewers: []
+    assignees: []
+
+  # ── Smart-contracts Rust (Cargo) dependencies ───────────────────────────────
+  - package-ecosystem: "cargo"
+    directory: "/smart-contracts"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    groups:
+      cargo-non-security:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "smart-contracts"
+      - "rust"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    reviewers: []
+    assignees: []
+
+  # ── GitHub Actions workflow dependencies ────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    groups:
+      actions-non-security:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    reviewers: []
+    assignees: []

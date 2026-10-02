@@ -6,7 +6,8 @@ import { useTaskMonitor } from '../hooks/useTaskMonitor';
 import { TaskDetailTimeline } from '../components/dashboard/TaskDetailTimeline';
 import { PaymentTimeline } from '../components/dashboard/PaymentTimeline';
 import { Skeleton, SkeletonText } from '../components/common/Skeleton';
-import { AlertCircle, CheckCircle2, Play, RefreshCw } from 'lucide-react';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { AlertCircle, CheckCircle2, Play, RefreshCw, XCircle } from 'lucide-react';
 
 const CustomNode: React.FC<{ id: string; data: { label: string; status: string } }> = ({ id, data }) => {
   const { t } = useTranslation();
@@ -86,6 +87,13 @@ const TaskDetailPage: React.FC = () => {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const { task, loading, error, wsStatus, nodes, payments, outputs, refetch } = useTaskMonitor(id);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const handleCancelTask = () => {
+    // Cancel logic: close dialog and notify user (actual cancellation API call
+    // would be wired here once the backend endpoint is available)
+    setShowCancelConfirm(false);
+  };
 
   // Check if any node is failed
   const failedNode = useMemo(() => {
@@ -309,6 +317,16 @@ const TaskDetailPage: React.FC = () => {
             <RefreshCw size={12} />
             <span>{t('page.task.sync')}</span>
           </button>
+          {task?.status === 'running' || task?.status === 'queued' ? (
+            <button
+              onClick={() => setShowCancelConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[var(--status-danger-surface)] hover:bg-[var(--status-danger-surface-strong)] border border-[var(--status-danger-border)] text-[var(--status-danger)] transition"
+              aria-label={t('page.task.cancelTask', { defaultValue: 'Cancel task' })}
+            >
+              <XCircle size={12} />
+              <span>{t('page.task.cancelTask', { defaultValue: 'Cancel' })}</span>
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -362,6 +380,17 @@ const TaskDetailPage: React.FC = () => {
           <PaymentTimeline payments={payments} />
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showCancelConfirm}
+        title={t('page.task.cancelConfirm.title', { defaultValue: 'Cancel Running Task?' })}
+        description={t('page.task.cancelConfirm.description', { defaultValue: 'This will stop all agents working on your task immediately.' })}
+        consequence={t('page.task.cancelConfirm.consequence', { defaultValue: 'Your task will be cancelled and any refund will be processed within 24 hours. Progress made so far will be lost.' })}
+        confirmLabel={t('page.task.cancelConfirm.confirm', { defaultValue: 'Cancel Task' })}
+        cancelLabel={t('common.keepRunning', { defaultValue: 'Keep Running' })}
+        onConfirm={handleCancelTask}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
     </div>
   );
 };

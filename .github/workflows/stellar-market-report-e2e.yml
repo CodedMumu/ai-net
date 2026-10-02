@@ -28,17 +28,17 @@ jobs:
       DATABASE_URL: ./data/stellar-e2e.db
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - name: Set up Stellar CLI
-        uses: stellar/stellar-cli@v27.1.0
+        uses: stellar/stellar-cli@v28.1.0
 
       - name: Install backend dependencies
         run: npm ci

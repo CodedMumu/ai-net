@@ -436,6 +436,7 @@ export function formatPrometheusMetrics(params: {
   veniceRequests: Map<string, number>;
   veniceLatencyHistogram: PrometheusHistogram;
   veniceCircuitBreakerState: number;
+  veniceCircuitState?: "closed" | "open" | "half_open";
   totalXlmTransacted?: number;
 }): string {
   const lines: string[] = [];
@@ -498,6 +499,12 @@ export function formatPrometheusMetrics(params: {
   lines.push("# HELP ainet_venice_circuit_breaker_state Gauge (0 closed, 1 open, 2 half-open)");
   lines.push("# TYPE ainet_venice_circuit_breaker_state gauge");
   lines.push(`ainet_venice_circuit_breaker_state ${params.veniceCircuitBreakerState}`);
+  lines.push("");
+  lines.push("# HELP venice_circuit_state Current Venice circuit state");
+  lines.push("# TYPE venice_circuit_state gauge");
+  for (const state of ["closed", "open", "half_open"] as const) {
+    lines.push(`venice_circuit_state{state="${state}"} ${params.veniceCircuitState === state ? 1 : 0}`);
+  }
 
   return lines.join("\n") + "\n";
 }
@@ -692,6 +699,7 @@ export class MetricsService {
   private veniceRequests = new Map<string, number>();
   private veniceLatencyHistogram = createEmptyHistogram(DEFAULT_VENICE_LATENCY_BUCKETS);
   private veniceCircuitBreakerState = 0; // 0=closed, 1=open, 2=half-open
+  private veniceCircuitState: "closed" | "open" | "half_open" = "closed";
   private registeredOnce = true;
   private lastScrapeTimestamp: string;
 
@@ -735,6 +743,10 @@ export class MetricsService {
     return this.veniceCircuitBreakerState;
   }
 
+  setVeniceCircuitState(state: "closed" | "open" | "half_open"): void {
+    this.veniceCircuitState = state;
+  }
+
   /**
    * Render all metric families in Prometheus text format.
    */
@@ -749,6 +761,7 @@ export class MetricsService {
       veniceRequests: this.veniceRequests,
       veniceLatencyHistogram: this.veniceLatencyHistogram,
       veniceCircuitBreakerState: this.veniceCircuitBreakerState,
+      veniceCircuitState: this.veniceCircuitState,
     });
   }
 
@@ -760,7 +773,7 @@ export class MetricsService {
       status: "ok",
       uptimeSeconds: Math.max(0, Math.floor((this.clock() - this.startedAtMs) / 1000)),
       lastScrapeTimestamp: this.lastScrapeTimestamp,
-      metricFamiliesCount: 8,
+      metricFamiliesCount: 9,
       registeredOnce: this.registeredOnce,
     };
   }
@@ -773,6 +786,7 @@ export class MetricsService {
     this.veniceRequests.clear();
     this.veniceLatencyHistogram = createEmptyHistogram(DEFAULT_VENICE_LATENCY_BUCKETS);
     this.veniceCircuitBreakerState = 0;
+    this.veniceCircuitState = "closed";
     this.registeredOnce = true;
     this.resetCache();
   }

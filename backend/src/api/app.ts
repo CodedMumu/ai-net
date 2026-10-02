@@ -57,10 +57,12 @@ import { agentsRouter } from "./routes/agents";
 import { createAdminRouter } from "./routes/admin";
 import { healthRouter } from "./routes/health";
 import { createReconciliationRouter, type ReconciliationRouterOptions } from "./routes/reconciliation";
+import { createEventsRouter } from "./routes/events";
 import { createStatsRouter } from "./routes/stats";
 import { attachTaskStream, getStreamConnectionCount, type TaskStreamOptions } from "./routes/stream";
 import { createV1TasksRouter } from "./routes/v1/tasks";
 import { createV2TasksRouter } from "./routes/v2/tasks";
+import { createTaskResultsRouter } from "./routes/taskResults";
 import { createAuthRouter } from "./routes/auth";
 import { type AuthService } from "../services/auth";
 import { createLogger } from "../utils/logger";
@@ -200,6 +202,7 @@ export function createApp(opts: AppOptions = {}): {
 
   // ── Task routes ────────────────────────────────────────────────────────────
   // Authenticated task creation uses the tighter authed limiter.
+  app.use("/api/tasks", authedLimiter.middleware, createTaskResultsRouter());
   const v1TasksRouter = createV1TasksRouter(dispatch, releasePayment, jobQueue);
   const v2TasksRouter = createV2TasksRouter(dispatch, releasePayment, jobQueue);
 
@@ -228,6 +231,9 @@ export function createApp(opts: AppOptions = {}): {
 
   // ── Payment reconciliation routes ──────────────────────────────────────────
   app.use("/api/reconciliation", createReconciliationRouter(opts.reconciliation));
+
+  // ── Contract event indexer routes (Issue #52) ──────────────────────────────
+  app.use("/api/events", publicLimiter.middleware, createEventsRouter());
 
   app.use((_req: Request, res: Response) => {
     res.status(404).json({

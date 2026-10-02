@@ -1,12 +1,13 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { Horizon, Keypair } from "@stellar/stellar-sdk";
+import { Keypair } from "@stellar/stellar-sdk";
 import { getAgentDb, createAgentDb, AgentDb } from "../../db/agents";
 import { heartbeatRateLimitMiddleware } from "../middleware/rateLimit";
 import { NotFoundError, ValidationError, UnauthorizedError, AppError } from "../../errors";
 import { cacheMiddleware } from "../middleware/cache";
 import { invalidateAgentsCache } from "../../cache/invalidation";
 import { ttlForRoute } from "../../config";
+import { StellarService, StellarServiceError } from "../../services/stellarService";
 
 const AgentCursorListSchema = z.object({
   cursor: z.string().optional(),
@@ -20,6 +21,7 @@ const AgentCursorListSchema = z.object({
 export interface AgentsRouterOptions {
   healthTimeoutMs?: number;
   db?: AgentDb;
+  stellarService?: StellarService;
 }
 
 const STELLAR_PUBLIC_KEY_REGEX = /^G[A-Z2-7]{55}$/;
@@ -34,8 +36,6 @@ const RegisterAgentSchema = z.object({
 });
 
 const DEFAULT_HEALTH_TIMEOUT_MS = 3_000;
-const HORIZON_URL = process.env.STELLAR_HORIZON_URL || "https://horizon-testnet.stellar.org";
-const horizon = new Horizon.Server(HORIZON_URL);
 
 export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
   const router = Router();
@@ -265,9 +265,10 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
       // Verify Stellar account exists
       if (process.env.SKIP_STELLAR_ACCOUNT_VERIFY !== "true") {
         try {
-          await horizon.loadAccount(data.stellarPublicKey);
+          const stellarService = options.stellarService ?? new StellarService();
+          await stellarService.getAccountBalance(data.stellarPublicKey);
         } catch (error: any) {
-          if (error?.response?.status === 404) {
+          if (error instanceof StellarServiceError && error.code === "STELLAR_NOT_FOUND") {
             res.status(400).json({
               error: "Stellar account not found",
               code: "StellarAccountNotFound",
@@ -275,10 +276,7 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
             return;
           }
           if (process.env.NODE_ENV !== "test") {
-            res.status(400).json({
-              error: "Failed to verify Stellar account",
-              code: "StellarVerificationFailed",
-            });
+            next(error);
             return;
           }
         }

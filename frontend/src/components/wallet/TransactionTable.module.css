@@ -4,6 +4,16 @@
   border-radius: var(--radius-xl);
   padding: 24px;
   margin-bottom: 24px;
+  /* Tablet: allow internal horizontal scroll instead of page-level overflow */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tablet: adjust padding for 768px–1023px viewports */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .container {
+    padding: 16px;
+  }
 }
 
 .heading {

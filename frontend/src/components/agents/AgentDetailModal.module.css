@@ -13,6 +13,71 @@
   animation: backdropIn 0.2s ease forwards;
 }
 
+/* Accessible overlay — replaces the removed <Modal> wrapper */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: backdropIn 0.2s ease forwards;
+}
+
+/* Accessible dialog container */
+.dialog {
+  position: relative;
+  background: var(--surface-primary, #1e293b);
+  border: 1px solid var(--panel-border, #334155);
+  border-radius: var(--radius-2xl, 16px);
+  box-shadow: var(--shadow-lg, 0 20px 60px rgba(0,0,0,0.5));
+  width: 100%;
+  max-width: 620px;
+  max-height: 90dvh;
+  overflow-y: auto;
+  outline: none; /* focus is managed via useFocusTrap */
+}
+
+/* Close button */
+.closeButton {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border, #334155);
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  z-index: 1;
+}
+.closeButton:hover {
+  background: var(--bg-tertiary, #0f172a);
+  color: var(--text-primary, #f8fafc);
+}
+.closeButton:focus-visible {
+  outline: 3px solid var(--accent, #38bdf8);
+  outline-offset: 2px;
+}
+
+/* Status dot (inline with text label for WCAG 1.4.1 non-color dependence) */
+.statusDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 @keyframes backdropIn {
   from { opacity: 0; }
   to   { opacity: 1; }

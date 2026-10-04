@@ -15,6 +15,9 @@ import { useCommandPalette } from './hooks/useCommandPalette'
 import OnboardingModal from './components/onboarding/OnboardingModal'
 import './components/common/Toast.css'
 
+// Lazy-loaded page components
+const AgentDetailPage = lazy(() => import('./pages/AgentDetailPage'))
+
 // Lives INSIDE <Router> and the theme/wallet providers: useCommandPalette()
 // calls useNavigate(), useTheme() and useWallet(), which all require their
 // context providers to be mounted above this component.
@@ -52,6 +55,14 @@ const RoutedContent: React.FC = () => {
                     element={
                       <ProtectedRoute>
                         <AgentsPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/agents/:id"
+                    element={
+                      <ProtectedRoute>
+                        <AgentDetailPage />
                       </ProtectedRoute>
                     }
                   />

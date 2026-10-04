@@ -8,6 +8,23 @@ const router = Router();
 const startTime = Date.now();
 
 /**
+ * Set to true by the graceful shutdown handler before closing connections.
+ * When draining, `GET /health` returns `{ status: "draining" }` so load
+ * balancers know to stop sending new traffic.
+ */
+let _isDraining = false;
+
+/** Mark the server as entering the drain window (called by shutdown handler). */
+export function setDraining(value: boolean): void {
+  _isDraining = value;
+}
+
+/** Returns true when the server is in the drain window. */
+export function isDraining(): boolean {
+  return _isDraining;
+}
+
+/**
  * @openapi
  * /health:
  *   get:
@@ -26,6 +43,17 @@ const startTime = Date.now();
  */
 const livenessHandler: RequestHandler = (_req: Request, res: Response) => {
   const config = getConfig();
+  if (_isDraining) {
+    // During shutdown: return 503 so load balancers stop sending new traffic,
+    // while the drain window allows in-flight requests to finish.
+    res.status(503).json({
+      status: "draining",
+      uptime: Math.floor((Date.now() - startTime) / 1000),
+      version: config.NPM_PACKAGE_VERSION,
+      stellarNetwork: config.STELLAR_NETWORK,
+    });
+    return;
+  }
   res.json({
     status: "ok",
     uptime: Math.floor((Date.now() - startTime) / 1000),

@@ -7,6 +7,8 @@ members = [
     "contracts/agent_governance",
     "contracts/upgrade-manager",
     "contracts/task_store",
+    "contracts/dispute_resolution",
+    "migrations/migration_runner",
 ]
 resolver = "2"
 

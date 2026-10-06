@@ -36,26 +36,61 @@ function formatHeartbeatAge(lastHeartbeat?: number): string {
   return `${hours}h ago`
 }
 
-function CapabilityBadges({ capabilities }: { capabilities: string[] }) {
-  const badgeColors: Record<string, string> = {
-    research: 'bg-[var(--info-surface)] text-accent-info border-[var(--info-border)]',
-    risk: 'bg-[var(--status-warning-surface)] text-[var(--status-warning-text)] border-[var(--status-warning-border)]',
-    coding: 'bg-[var(--status-success-surface)] text-[var(--status-success-text)] border-[var(--status-success-border)]',
-    design: 'bg-[var(--accent-surface)] text-[var(--accent-text)] border-[var(--accent-border)]',
-    report: 'bg-[var(--status-danger-surface)] text-[var(--status-danger-text)] border-[var(--status-danger-border)]',
-  }
+const capabilityTokens: Record<string, { color: string; surface: string; border: string }> = {
+  research: {
+    color: 'var(--agent-research)',
+    surface: 'var(--agent-research-surface)',
+    border: 'var(--agent-research-border)',
+  },
+  risk: {
+    color: 'var(--agent-risk)',
+    surface: 'var(--agent-risk-surface)',
+    border: 'var(--agent-risk-border)',
+  },
+  coding: {
+    color: 'var(--agent-coding)',
+    surface: 'var(--agent-coding-surface)',
+    border: 'var(--agent-coding-border)',
+  },
+  design: {
+    color: 'var(--agent-design)',
+    surface: 'var(--agent-design-surface)',
+    border: 'var(--agent-design-border)',
+  },
+  report: {
+    color: 'var(--agent-report)',
+    surface: 'var(--agent-report-surface)',
+    border: 'var(--agent-report-border)',
+  },
+}
 
+function CapabilityBadges({ capabilities }: { capabilities: string[] }) {
   return (
     <div className="flex flex-wrap gap-1.5 mb-3">
-      {capabilities.map((cap) => (
-        <span
-          key={cap}
-          className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeColors[cap] || 'bg-text-secondary/10 text-text-secondary border-text-secondary/30'}`}
-          title={cap}
-        >
-          {cap}
-        </span>
-      ))}
+      {capabilities.map((cap) => {
+        const tokens = capabilityTokens[cap]
+        const badgeStyle: React.CSSProperties = tokens
+          ? {
+              color: tokens.color,
+              backgroundColor: tokens.surface,
+              borderColor: tokens.border,
+            }
+          : {
+              color: 'var(--text-secondary)',
+              backgroundColor: 'var(--agent-default-surface)',
+              borderColor: 'var(--agent-default-border)',
+            }
+        return (
+          <span
+            key={cap}
+            className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border"
+            style={badgeStyle}
+            title={cap}
+          >
+            {cap}
+          </span>
+        )
+      })}
     </div>
   )
 }

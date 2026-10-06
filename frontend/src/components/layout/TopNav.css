@@ -64,6 +64,13 @@
   transform: scale(0.94);
 }
 
+/* Visible focus indicators for keyboard navigation (#101) */
+.hamburger:focus-visible,
+.sidebar-toggle:focus-visible {
+  outline: 2px solid var(--accent, #8b5cf6);
+  outline-offset: 2px;
+}
+
 .logo {
   font-size: 20px;
   font-weight: 700;
@@ -218,6 +225,11 @@
   transform: scale(0.96);
 }
 
+.disconnect-btn:focus-visible {
+  outline: 2px solid var(--accent, #8b5cf6);
+  outline-offset: 2px;
+}
+
 .language-switcher {
   display: flex;
   align-items: center;
@@ -301,5 +313,65 @@
 
   .language-flag {
     font-size: 13px;
+  }
+}
+
+.connect-wallet-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--primary);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s, opacity 0.2s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.connect-wallet-btn:hover {
+  background: var(--primary-hover, #4f46e5);
+}
+
+.connect-wallet-btn:active {
+  transform: scale(0.96);
+}
+
+.connect-wallet-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.wallet-balance {
+  font-variant-numeric: tabular-nums;
+  min-width: 88px;
+  text-align: center;
+}
+
+.wallet-method {
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+@media (max-width: 767px) {
+  .connect-wallet-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .connect-wallet-btn span {
+    display: none;
+  }
+
+  .wallet-balance {
+    display: none;
+  }
+
+  .wallet-method {
+    display: none;
   }
 }

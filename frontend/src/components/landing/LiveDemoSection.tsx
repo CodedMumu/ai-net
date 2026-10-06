@@ -12,8 +12,8 @@ interface DemoStep {
 }
 
 const demoSteps: DemoStep[] = [
-  { key: 'research', icon: <Search size={16} className="text-accent-info" /> },
-  { key: 'risk', icon: <ShieldAlert size={16} className="text-warning" /> },
+  { key: 'research', icon: <Search size={16} style={{ color: 'var(--agent-research)' }} /> },
+  { key: 'risk', icon: <ShieldAlert size={16} style={{ color: 'var(--agent-risk)' }} /> },
   { key: 'report', icon: <FileText size={16} className="text-accent-purple" /> },
 ]
 

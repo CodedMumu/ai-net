@@ -96,6 +96,18 @@
   transform: scale(0.97);
 }
 
+/* Visible focus indicator for keyboard navigation (#101) */
+.nav-item:focus-visible {
+  outline: 2px solid var(--accent, #8b5cf6);
+  outline-offset: 2px;
+}
+
+/* Visible focus indicator for keyboard navigation (#101) */
+.nav-item:focus-visible {
+  outline: 2px solid var(--accent, #8b5cf6);
+  outline-offset: 2px;
+}
+
 .nav-item:active .nav-icon {
   transform: scale(0.92);
 }

@@ -103,7 +103,7 @@ const Navbar: React.FC = () => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <div className="w-[26px] h-[26px] rounded-[6px] bg-gradient-primary flex items-center justify-center font-bold text-inverse text-[13px] shadow-info-glow">
+              <div className="w-[26px] h-[26px] rounded-[6px] bg-gradient-primary flex items-center justify-center font-bold text-white text-[13px] shadow-info-glow">
                 a
               </div>
               <span className="font-semibold text-[14px] text-text-primary tracking-wide">

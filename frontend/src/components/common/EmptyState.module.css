@@ -22,6 +22,25 @@
   padding: 1.75rem 1rem;
 }
 
+.illustrationWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  animation: illustrationFloat 3s ease-in-out infinite;
+}
+
+@keyframes illustrationFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .illustrationWrapper {
+    animation: none;
+  }
+}
+
 .iconWrapper {
   position: relative;
   display: flex;

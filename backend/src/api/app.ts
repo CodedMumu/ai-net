@@ -54,6 +54,7 @@ import { requestLogger } from "./middleware/requestLogger";
 import { versioningMiddleware } from "./middleware/versioning";
 import { getOpenapiJson, getOpenapiYaml, openapiSpec, swaggerUiOptions } from "./docs";
 import { agentsRouter } from "./routes/agents";
+import { paymentsRouter } from "./routes/payments";
 import { createAdminRouter } from "./routes/admin";
 import { healthRouter } from "./routes/health";
 import { createReconciliationRouter, type ReconciliationRouterOptions } from "./routes/reconciliation";
@@ -228,6 +229,9 @@ export function createApp(opts: AppOptions = {}): {
 
   // ── Payment reconciliation routes ──────────────────────────────────────────
   app.use("/api/reconciliation", createReconciliationRouter(opts.reconciliation));
+
+  // ── Payment history routes (Issue #7) ──────────────────────────────────────
+  app.use("/api/payments", publicLimiter.middleware, paymentsRouter);
 
   app.use((_req: Request, res: Response) => {
     res.status(404).json({

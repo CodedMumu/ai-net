@@ -14,6 +14,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { CommandPalette } from './components/common/CommandPalette'
 import RouteLoader from './components/common/RouteLoader'
 import { useCommandPalette } from './hooks/useCommandPalette'
+import OnboardingModal from './components/onboarding/OnboardingModal'
 import './components/common/Toast.css'
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'))
 const DashboardPage = lazy(() =>
@@ -36,6 +37,9 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Lazy-loaded page components
+const AgentDetailPage = lazy(() => import('./pages/AgentDetailPage'))
 
 // Lives INSIDE <Router> and the theme/wallet providers: useCommandPalette()
 // calls useNavigate(), useTheme() and useWallet(), which all require their
@@ -86,6 +90,14 @@ const RoutedContent: React.FC = () => {
                     }
                   />
                   <Route
+                    path="/agents/:id"
+                    element={
+                      <ProtectedRoute>
+                        <AgentDetailPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/tasks/new"
                     element={
                       <ProtectedRoute>
@@ -125,6 +137,9 @@ const RoutedContent: React.FC = () => {
         onClose={closePalette}
         commands={commands}
       />
+
+      {/* Onboarding modal — shown to first-time users, skippable, dismissable (#99) */}
+      <OnboardingModal />
     </>
   )
 }

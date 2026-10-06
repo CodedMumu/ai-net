@@ -26,7 +26,7 @@
   width: 34px;
   height: 34px;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
   border: 1px solid var(--panel-border);
   color: var(--text-secondary);
   border-radius: 8px;
@@ -34,14 +34,14 @@
 }
 
 .closeButton:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
   color: var(--text-primary);
   transform: none;
   box-shadow: none;
 }
 
 .closeButton:active {
-  background: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--text-primary) 16%, transparent);
   transform: scale(0.92);
 }
 
@@ -101,15 +101,15 @@
 }
 
 .statusActive {
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  color: #6EE7B7;
+  background: color-mix(in srgb, var(--status-success) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-success) 30%, transparent);
+  color: var(--status-success-text);
 }
 
 .statusInactive {
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #FCA5A5;
+  background: color-mix(in srgb, var(--status-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-danger) 30%, transparent);
+  color: var(--status-danger-text);
 }
 
 .pills {
@@ -119,9 +119,9 @@
 }
 
 .pill {
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  color: #C7D2FE;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text-muted);
   padding: 4px 12px;
   border-radius: var(--radius-pill);
   font-size: 0.75rem;
@@ -138,7 +138,7 @@
 }
 
 .txLink:hover {
-  color: #C7D2FE;
+  color: var(--text-muted);
   text-decoration: underline;
 }
 
